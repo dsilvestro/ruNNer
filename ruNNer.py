@@ -14,7 +14,8 @@ from sklearn.metrics import confusion_matrix
 from tensorflow import set_random_seed
 import matplotlib.backends.backend_pdf
 import matplotlib.pyplot as plt
-
+import tensorflow as tf
+import keras.backend
 import argparse, sys
 
 p = argparse.ArgumentParser() #description='<input file>') 
@@ -34,6 +35,7 @@ p.add_argument('-actfunc',         type=int,   help='1) relu; 2) tanh; 3) sigmoi
 p.add_argument('-kerninit',        type=int,   help='1) glorot_normal; 2) glorot_uniform', default= 1, metavar= 1)
 p.add_argument('-nodes',           type=float, help='n. nodes (multiplier of n. features)', default= 1, metavar= 1)
 p.add_argument('-randomize_data',  type=float, help='shuffle order data entries', default= 1, metavar= 1)
+p.add_argument('-threads',         type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
 args = p.parse_args()
 
 # NN SETTINGS
@@ -54,6 +56,10 @@ else: rseed = args.seed
 np.random.seed(rseed)
 random.seed(rseed)
 set_random_seed(rseed)
+n_threads = args.threads
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=n_threads, inter_op_parallelism_threads=n_threads)
+sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+keras.backend.set_session(sess)
 
 
 activation_functions = ["relu", "tanh", "sigmoid"]
