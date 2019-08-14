@@ -1,5 +1,4 @@
-# ruNNer
-## Train and run neural networks in Python
+# ruNNer -- Train and run neural networks in Python
 
 General purpose script to train and run a neural network using keras and tensorflow in Python (v.3) based on an array of numbers as input (features) and a discrete classification as output.
 
