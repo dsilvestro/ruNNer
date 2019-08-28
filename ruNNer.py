@@ -97,19 +97,22 @@ if file_scaling_array !="":
 	scaling_array       = np.loadtxt(file_scaling_array, skiprows=1)
 else:
 	scaling_array = 1.
-size_output = len(args.outlabels)
+
+
+try:
+	training_features = np.loadtxt(file_training_data) # load txt file
+	training_labels = np.loadtxt(file_training_labels) # load txt file
+except: 
+	training_features = np.load(file_training_data) # load npy file
+	training_labels = np.load(file_training_labels) # load npy file
+
+size_output = len(set(training_labels))
 
 
 # process train dataset
 train_nn = 0
 test_nn  = 0
 if run_train:
-	try:
-		training_features = np.loadtxt(file_training_data) # load txt file
-		training_labels = np.loadtxt(file_training_labels) # load txt file
-	except: 
-		training_features = np.load(file_training_data) # load npy file
-		training_labels = np.load(file_training_labels) # load npy file
 	train_indx = range( int(training_features.shape[0]*(1-args.test)) )
 	input_training = training_features[train_indx,:]
 	input_trainLabels = training_labels[train_indx].astype(int)
@@ -237,6 +240,7 @@ if run_empirical:
 	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
 	model.load_weights(model_name, by_name=False)
 	print("done.")
+	#print(model.get_config())
 	print(np.shape(empirical_features))
 
 	estimate_par = model.predict(empirical_features)
@@ -244,8 +248,11 @@ if run_empirical:
 	outfile = os.path.join(outpath,"%s_prob.txt" % (os.path.basename(model_name)))
 	np.savetxt(outfile, np.round(estimate_par,4), delimiter="\t",fmt='%1.4f')
 	
-	lab = np.array(args.outlabels)
+	try:
+		lab = np.array(list(set(training_labels))).astype(int)
+	except:
+		lab = np.array(list(set(training_labels)))
 	indx_best = np.argmax(estimate_par,axis=1)
-	print(sum(indx_best))
+
 	outfile = os.path.join(outpath,"%s_labels.txt" % (os.path.basename(model_name)))
 	np.savetxt(outfile, lab[indx_best], delimiter="\t",fmt="%s")
