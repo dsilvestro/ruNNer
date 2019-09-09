@@ -32,6 +32,7 @@ p.add_argument('-layers',          type=int,   help='n. hidden layers', default=
 p.add_argument('-outpath',         type=str,   help='', default= "")
 p.add_argument('-batch_size',      type=int,   help='if 0: dataset is not sliced into smaller batches', default= 0, metavar= 0)
 p.add_argument('-epochs',          type=int,   help='', default= 100, metavar= 100)
+p.add_argument('-optim_epoch',     type=int,   help='0: min loss function; 1: max validation accuracy',default=0)
 p.add_argument('-verbose',         type=int,   help='', default= 1, metavar= 1)
 p.add_argument('-loadNN',          type=str,   help='', default= '', metavar= '')
 p.add_argument('-seed',            type=int,   help='', default= 0, metavar= 0)
@@ -60,6 +61,7 @@ elif args.mode == 'predict':
 	run_train = 0
 	run_empirical = 1
 
+
 # SET SEEDS
 if args.seed==0: rseed = np.random.randint(1000,9999)
 else: rseed = args.seed
@@ -79,8 +81,10 @@ kernel_initializers = ["glorot_normal", "glorot_uniform"]
 kernel_init = kernel_initializers[args.kerninit-1]
 
 outpath = args.outpath
-if not os.path.exists(outpath):
-	os.makedirs(outpath)
+if outpath=="":
+	outpath = os.path.dirname(args.t)
+elif not os.path.exists(outpath):
+ 	os.makedirs(outpath)
 
 if args.loadNN == "":
 	model_name = os.path.join(outpath,"NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
@@ -107,6 +111,13 @@ except:
 	training_labels = np.load(file_training_labels) # load npy file
 
 size_output = len(set(training_labels))
+
+if args.r=="":
+	training_features= training_features/(np.amax(training_features,axis=0) - np.amin(training_features,axis=0))
+	training_features = training_features - np.amin(training_features, axis=0) - 0.5
+	print(training_features)
+	print(np.amax(training_features,0))
+	print(np.amin(training_features,0))
 
 
 # process train dataset
@@ -179,7 +190,10 @@ if run_train:
 		pdf.close()
 	
 	# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
-	optimal_number_of_epochs = np.argmin(history.history['val_loss'])
+	if args.optim_epoch==0:
+		optimal_number_of_epochs = np.argmin(history.history['val_loss'])
+	elif args.optim_epoch==1:
+		optimal_number_of_epochs = np.argmax(history.history['val_acc'])
 	print("optimal number of epochs:", optimal_number_of_epochs+1)
 	# print loss and accuracy at best epoch to file
 	loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
