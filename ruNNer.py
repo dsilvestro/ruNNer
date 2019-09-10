@@ -13,6 +13,7 @@ from keras.layers import Dense
 #from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow import set_random_seed
 import matplotlib.backends.backend_pdf
 import matplotlib.pyplot as plt
@@ -21,27 +22,30 @@ import keras.backend
 import argparse, sys
 
 p = argparse.ArgumentParser() #description='<input file>') 
-p.add_argument('-mode',            choices=['train', 'predict'],default=None,required=True)
-p.add_argument('-t',               type=str,   help='array of training features',default= "", metavar= "")
-p.add_argument('-l',               type=str,   help='array of training labels', default= 0, metavar= 0)
-p.add_argument('-e',               type=str,   help='array of empirical features', default= 0, metavar= 0)
-p.add_argument('-r',               type=str,   help='scaling_array ',  default= "", metavar= "")
-p.add_argument('-test',            type=float, help='fraction of training used as test set', default= 0.1, metavar= 0.1)
-p.add_argument('-outlabels',       type=str,   nargs='+',default=[])
-p.add_argument('-layers',          type=int,   help='n. hidden layers', default= 1, metavar= 1)
-p.add_argument('-outpath',         type=str,   help='', default= "")
-p.add_argument('-batch_size',      type=int,   help='if 0: dataset is not sliced into smaller batches', default= 0, metavar= 0)
-p.add_argument('-epochs',          type=int,   help='', default= 100, metavar= 100)
-p.add_argument('-optim_epoch',     type=int,   help='0: min loss function; 1: max validation accuracy',default=0)
-p.add_argument('-verbose',         type=int,   help='', default= 1, metavar= 1)
-p.add_argument('-loadNN',          type=str,   help='', default= '', metavar= '')
-p.add_argument('-seed',            type=int,   help='', default= 0, metavar= 0)
-p.add_argument('-actfunc',         type=int,   help='1) relu; 2) tanh; 3) sigmoid', default= 1, metavar= 1)
-p.add_argument('-kerninit',        type=int,   help='1) glorot_normal; 2) glorot_uniform', default= 1, metavar= 1)
-p.add_argument('-nodes',           type=float, help='n. nodes (multiplier of n. features)', default= 1, metavar= 1)
-p.add_argument('-randomize_data',  type=float, help='shuffle order data entries', default= 1, metavar= 1)
-p.add_argument('-threads',         type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
+p.add_argument('-mode',                   choices=['train', 'predict'],default=None,required=True)
+p.add_argument('-t',                      type=str,   help='array of training features',default= "", metavar= "")
+p.add_argument('-l',                      type=str,   help='array of training labels', default= 0, metavar= 0)
+p.add_argument('-e',                      type=str,   help='array of empirical features', default= 0, metavar= 0)
+p.add_argument('-feature_indeces',        type=str,   help='array of feature indices to select', default= 0, metavar= 0)
+p.add_argument('-train_instance_indices', type=str,   help='array of indices for selecting training instances', default= 0, metavar= 0)
+p.add_argument('-test',                   type=float, help='fraction of training used as test set', default= 0.1, metavar= 0.1)
+p.add_argument('-n_labels',               type=int,   help='provide number of labels, necessary for prediction', default=0)
+p.add_argument('-outlabels',              type=str,   nargs='+',default=[])
+p.add_argument('-layers',                 type=int,   help='n. hidden layers', default= 1, metavar= 1)
+p.add_argument('-outpath',                type=str,   help='', default= "")
+p.add_argument('-batch_size',             type=int,   help='if 0: dataset is not sliced into smaller batches', default= 0, metavar= 0)
+p.add_argument('-epochs',                 type=int,   help='', default= 100, metavar= 100)
+p.add_argument('-optim_epoch',            type=int,   help='0: min loss function; 1: max validation accuracy',default=0)
+p.add_argument('-verbose',                type=int,   help='', default= 1, metavar= 1)
+p.add_argument('-loadNN',                 type=str,   help='', default= '', metavar= '')
+p.add_argument('-seed',                   type=int,   help='', default= 0, metavar= 0)
+p.add_argument('-actfunc',                type=int,   help='1) relu; 2) tanh; 3) sigmoid', default= 1, metavar= 1)
+p.add_argument('-kerninit',               type=int,   help='1) glorot_normal; 2) glorot_uniform', default= 1, metavar= 1)
+p.add_argument('-nodes',                  type=float, help='n. nodes (multiplier of n. features)', default= 1, metavar= 1)
+p.add_argument('-randomize_data',         type=float, help='shuffle order data entries', default= 1, metavar= 1)
+p.add_argument('-threads',                type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
 args = p.parse_args()
+
 
 
 # NN SETTINGS
@@ -93,37 +97,41 @@ else:
 
 # input files
 file_training_data  = args.t # empirical data 
-file_scaling_array   = args.r # rescale features
 file_empirical_data  = args.e # empirical data 
 file_training_labels = args.l # training labels
 
-if file_scaling_array !="":
-	scaling_array       = np.loadtxt(file_scaling_array, skiprows=1)
-else:
-	scaling_array = 1.
-
-
-try:
-	training_features = np.loadtxt(file_training_data) # load txt file
-	training_labels = np.loadtxt(file_training_labels) # load txt file
-except: 
-	training_features = np.load(file_training_data) # load npy file
-	training_labels = np.load(file_training_labels) # load npy file
-
-size_output = len(set(training_labels))
-
-if args.r=="":
-	training_features= training_features/(np.amax(training_features,axis=0) - np.amin(training_features,axis=0))
-	training_features = training_features - np.amin(training_features, axis=0) - 0.5
-	print(training_features)
-	print(np.amax(training_features,0))
-	print(np.amin(training_features,0))
+# if labels are provided read them, because they will be used by training or prediction mode
+if file_training_labels:
+	try:
+		training_labels = np.loadtxt(file_training_labels) # load txt file
+	except: 
+		training_labels = np.load(file_training_labels) # load npy file
 
 
 # process train dataset
 train_nn = 0
 test_nn  = 0
 if run_train:
+	try:
+		training_features = np.loadtxt(file_training_data) # load txt file
+	except: 
+		training_features = np.load(file_training_data) # load npy file
+	# select features and instances, if files provided:
+	if args.feature_indeces:
+		feature_index_array = np.loadtxt(args.feature_indeces,dtype=int)
+		training_features = training_features[:,feature_index_array]
+	if args.train_instance_indices:
+		instance_index_array = np.loadtxt(args.train_instance_indices,dtype=int)
+		training_features = training_features[instance_index_array,:]
+		training_labels = training_labels[instance_index_array]
+	
+	print('Training data shape:', training_features.shape)
+	
+	# scale data using the min-max scaler (between 0 and 1)
+	scaler = MinMaxScaler()
+	scaler.fit(training_features)
+	training_features = scaler.transform(training_features)
+
 	train_indx = range( int(training_features.shape[0]*(1-args.test)) )
 	input_training = training_features[train_indx,:]
 	input_trainLabels = training_labels[train_indx].astype(int)
@@ -136,8 +144,6 @@ if run_train:
 		batch_size_fit = int(input_training.shape[0])
 	train_nn = 1
 	test_nn  = 1
-	
-	input_training = input_training / scaling_array
 	
 	# DEF SIZE OF THE FEATURES
 	hSize = np.shape(input_training)[1]
@@ -234,14 +240,37 @@ if test_nn:
 	print('Test cross-entropy loss:',round(scores[0],3),"\n")
 
 
+
 ######## TEST EMPIRICAL DATA SETS
-if run_empirical:
+if run_empirical:   
 	print("Loading input file...")
 	try:
 		empirical_features = np.loadtxt(file_empirical_data)
 	except:
 		empirical_features = np.load(file_empirical_data)
-	empirical_features = empirical_features / scaling_array
+  
+	# select features and instances, if files provided:
+	if args.feature_indeces:
+		feature_index_array = np.loadtxt(args.feature_indeces,dtype=int)
+		empirical_features = empirical_features[:,feature_index_array]
+		out_file_stem = '.'.join(os.path.basename(args.feature_indeces).split('.')[:-1])
+	else:
+		out_file_stem = os.path.basename(model_name)
+	# scale data using the min-max scaler (between 0 and 1)
+	scaler = MinMaxScaler()
+	scaler.fit(empirical_features)
+	empirical_features = scaler.transform(empirical_features)
+
+	if file_training_labels:
+		size_output = len(set(training_labels))
+	elif args.n_labels:
+		# get the number of labels
+		size_output = args.n_labels
+	elif args.outlabels:
+		size_output = len(args.outlabels)
+	else:
+		quit('Missing value ERROR: Use the "-n_labels" flag to specify the number of categories or provide the label array used for training using the "-l" flag or provide "-outlabels" flag followed by a list of desired label names.')
+
 	print("Loading weights...")
 	# DEF SIZE OF THE FEATURES
 	hSize = empirical_features.shape[1]
@@ -259,14 +288,20 @@ if run_empirical:
 
 	estimate_par = model.predict(empirical_features)
 	print(estimate_par)
-	outfile = os.path.join(outpath,"%s_prob.txt" % (os.path.basename(model_name)))
+	outfile = os.path.join(outpath,"label_probabilities_%s.txt" %out_file_stem)
 	np.savetxt(outfile, np.round(estimate_par,4), delimiter="\t",fmt='%1.4f')
 	
-	try:
-		lab = np.array(list(set(training_labels))).astype(int)
-	except:
-		lab = np.array(list(set(training_labels)))
-	indx_best = np.argmax(estimate_par,axis=1)
 
-	outfile = os.path.join(outpath,"%s_labels.txt" % (os.path.basename(model_name)))
+	if file_training_labels:
+		try:
+			lab = np.arange(list(set(training_labels))).astype(int)
+		except:
+			lab = np.array(list(set(training_labels)))
+	elif args.outlabels:
+		lab = np.array(args.outlabels)
+	else:
+		lab=np.arange(size_output)
+	indx_best = np.argmax(estimate_par,axis=1)
+   
+	outfile = os.path.join(outpath,"labels_%s.txt" %out_file_stem)
 	np.savetxt(outfile, lab[indx_best], delimiter="\t",fmt="%s")
