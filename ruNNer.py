@@ -219,7 +219,7 @@ if run_train:
 	print("\nModel saved as:", model_name, optimal_number_of_epochs+1)
 
 
-if test_nn:
+if test_nn and args.test > 0.:
 	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
 	print(test_indx)
 	input_test = training_features[test_indx,:]
@@ -294,9 +294,9 @@ if run_empirical:
 
 	if file_training_labels:
 		try:
-			lab = np.arange(list(set(training_labels))).astype(int)
+			lab = np.sort(np.arange(list(set(training_labels))).astype(int))
 		except:
-			lab = np.array(list(set(training_labels)))
+			lab = np.sort(np.array(list(set(training_labels))))
 	elif args.outlabels:
 		lab = np.array(args.outlabels)
 	else:

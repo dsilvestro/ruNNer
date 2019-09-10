@@ -1,1 +1,1 @@
-Final loss and accuracy (best epoch): 0.237564	0.944444
+Final loss and accuracy (best epoch): 0.174162	0.988889
