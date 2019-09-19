@@ -26,13 +26,15 @@ p.add_argument('-mode',                   choices=['train', 'predict'],default=N
 p.add_argument('-t',                      type=str,   help='array of training features',default= "", metavar= "")
 p.add_argument('-l',                      type=str,   help='array of training labels', default= 0, metavar= 0)
 p.add_argument('-e',                      type=str,   help='array of empirical features', default= 0, metavar= 0)
-p.add_argument('-feature_indeces',        type=str,   help='array of feature indices to select', default= 0, metavar= 0)
+p.add_argument('-r',                      type=str,   help='file with rescaling array or float', default= 1, metavar= 1)
+p.add_argument('-feature_indices',        type=str,   help='array of feature indices to select', default= 0, metavar= 0)
 p.add_argument('-train_instance_indices', type=str,   help='array of indices for selecting training instances', default= 0, metavar= 0)
 p.add_argument('-test',                   type=float, help='fraction of training used as test set', default= 0.1, metavar= 0.1)
 p.add_argument('-n_labels',               type=int,   help='provide number of labels, necessary for prediction', default=0)
 p.add_argument('-outlabels',              type=str,   nargs='+',default=[])
 p.add_argument('-layers',                 type=int,   help='n. hidden layers', default= 1, metavar= 1)
 p.add_argument('-outpath',                type=str,   help='', default= "")
+p.add_argument('-outname',                type=str,   help='', default= "")
 p.add_argument('-batch_size',             type=int,   help='if 0: dataset is not sliced into smaller batches', default= 0, metavar= 0)
 p.add_argument('-epochs',                 type=int,   help='', default= 100, metavar= 100)
 p.add_argument('-optim_epoch',            type=int,   help='0: min loss function; 1: max validation accuracy',default=0)
@@ -41,7 +43,7 @@ p.add_argument('-loadNN',                 type=str,   help='', default= '', meta
 p.add_argument('-seed',                   type=int,   help='', default= 0, metavar= 0)
 p.add_argument('-actfunc',                type=int,   help='1) relu; 2) tanh; 3) sigmoid', default= 1, metavar= 1)
 p.add_argument('-kerninit',               type=int,   help='1) glorot_normal; 2) glorot_uniform', default= 1, metavar= 1)
-p.add_argument('-nodes',                  type=float, help='n. nodes (multiplier of n. features)', default= 1, metavar= 1)
+p.add_argument('-nodes',                  type=float, help='n. nodes (multiplier of n. features)', nargs='+',default=[1.])
 p.add_argument('-randomize_data',         type=float, help='shuffle order data entries', default= 1, metavar= 1)
 p.add_argument('-threads',                type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
 args = p.parse_args()
@@ -53,6 +55,9 @@ n_hidden_layers = args.layers # number of extra hidden layers
 max_epochs = args.epochs
 batch_size_fit = args.batch_size # batch size
 units_multiplier = args.nodes # number of nodes per input 
+if n_hidden_layers != len(units_multiplier):
+	units_multiplier = np.repeat(units_multiplier[0], n_hidden_layers)
+	print("Using node multiplier:",units_multiplier)
 plot_curves = 1 
 train_nn = 1
 randomize_data = args.randomize_data
@@ -65,6 +70,10 @@ elif args.mode == 'predict':
 	run_train = 0
 	run_empirical = 1
 
+try:
+	rescale_factors = float(args.r)
+except(ValueError):
+	rescale_factors = np.loadtxt(args.r)
 
 # SET SEEDS
 if args.seed==0: rseed = np.random.randint(1000,9999)
@@ -116,9 +125,14 @@ if run_train:
 		training_features = np.loadtxt(file_training_data) # load txt file
 	except: 
 		training_features = np.load(file_training_data) # load npy file
+	training_features/=rescale_factors
+	
+	print(np.amin(training_features,0))
+	print(np.amax(training_features,0))
+	
 	# select features and instances, if files provided:
-	if args.feature_indeces:
-		feature_index_array = np.loadtxt(args.feature_indeces,dtype=int)
+	if args.feature_indices:
+		feature_index_array = np.loadtxt(args.feature_indices,dtype=int)
 		training_features = training_features[:,feature_index_array]
 	if args.train_instance_indices:
 		instance_index_array = np.loadtxt(args.train_instance_indices,dtype=int)
@@ -160,10 +174,10 @@ if run_train:
 
 	modelFirstRun=Sequential() # init neural network
 	### DEFINE from INPUT HIDDEN LAYER
-	modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+	modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	### ADD HIDDEN LAYER
 	for jj  in range(n_hidden_layers-1):
-		modelFirstRun.add(Dense(units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		modelFirstRun.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	
 	modelFirstRun.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
 	modelFirstRun.summary()
@@ -208,9 +222,9 @@ if run_train:
 		out_file.write('Final loss and accuracy (best epoch): %.6f\t%.6f\n'%(loss_at_best_epoch,accurracy_at_best_epoch))
 
 	model=Sequential() # init neural network
-	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	for jj in range(n_hidden_layers-1):
-		model.add(Dense(units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
 	model.summary()
 	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
@@ -248,18 +262,19 @@ if run_empirical:
 		empirical_features = np.loadtxt(file_empirical_data)
 	except:
 		empirical_features = np.load(file_empirical_data)
-  
+		
+	empirical_features/=rescale_factors    
+	print(np.amin(empirical_features,0))
+	print(np.amax(empirical_features,0))
 	# select features and instances, if files provided:
-	if args.feature_indeces:
-		feature_index_array = np.loadtxt(args.feature_indeces,dtype=int)
+	if args.feature_indices:
+		feature_index_array = np.loadtxt(args.feature_indices,dtype=int)
 		empirical_features = empirical_features[:,feature_index_array]
-		out_file_stem = '.'.join(os.path.basename(args.feature_indeces).split('.')[:-1])
+		out_file_stem = '.'.join(os.path.basename(args.feature_indices).split('.')[:-1])
 	else:
 		out_file_stem = os.path.basename(model_name)
+	out_file_stem = out_file_stem + args.outname
 	# scale data using the min-max scaler (between 0 and 1)
-	scaler = MinMaxScaler()
-	scaler.fit(empirical_features)
-	empirical_features = scaler.transform(empirical_features)
 
 	if file_training_labels:
 		size_output = len(set(training_labels))
@@ -275,9 +290,9 @@ if run_empirical:
 	# DEF SIZE OF THE FEATURES
 	hSize = empirical_features.shape[1]
 	model=Sequential() # init neural network
-	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	for jj  in range(n_hidden_layers-1):
-		model.add(Dense(units=int(units_multiplier*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 	model.add(Dense(units=size_output,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
 	model.summary()
 	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
