@@ -204,7 +204,7 @@ if run_train:
 		plt.ylabel('Accuracy',fontsize=12)
 		plt.title('Accuracy Curves',fontsize=12)
 		
-		file_name = "%s_res.pdf" % (model_name)
+		file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
 		pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
 		pdf.savefig( fig )
 		pdf.close()
