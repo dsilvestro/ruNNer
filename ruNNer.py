@@ -100,7 +100,7 @@ elif not os.path.exists(outpath):
  	os.makedirs(outpath)
 
 if args.loadNN == "":
-	model_name = os.path.join(outpath,"NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
+	model_name = os.path.join(outpath,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
 else:
 	model_name = args.loadNN
 
@@ -230,7 +230,8 @@ if run_train:
 	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
 	history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit,validation_split=0.2, verbose=args.verbose)	
 	model.save_weights(model_name)
-	print("\nModel saved as:", model_name, optimal_number_of_epochs+1)
+	print("Optimal number of epochs selected:", optimal_number_of_epochs+1)
+	print("Model saved as:", model_name)
 
 
 if test_nn and args.test > 0.:
