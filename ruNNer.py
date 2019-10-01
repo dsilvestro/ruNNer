@@ -11,7 +11,7 @@ np.set_printoptions(precision=3) # rounds all array elements to 3rd digit
 from keras.models import Sequential
 from keras.layers import Dense
 #from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow import set_random_seed
@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras.backend
 import argparse, sys
+
 
 p = argparse.ArgumentParser() #description='<input file>') 
 p.add_argument('-mode',                   choices=['train', 'predict'],default=None,required=True)
@@ -46,8 +47,8 @@ p.add_argument('-kerninit',               type=int,   help='1) glorot_normal; 2)
 p.add_argument('-nodes',                  type=float, help='n. nodes (multiplier of n. features)', nargs='+',default=[1.])
 p.add_argument('-randomize_data',         type=float, help='shuffle order data entries', default= 1, metavar= 1)
 p.add_argument('-threads',                type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
+p.add_argument('-cross_val',              type=int,   help='Set number of cross validations to run. Set to 0 to turn off.',default=0)
 args = p.parse_args()
-
 
 
 # NN SETTINGS
@@ -172,67 +173,96 @@ if run_train:
 		input_trainLabels = input_trainLabels[rnd_indx]
 		input_trainLabelsPr = input_trainLabelsPr[rnd_indx,:]
 
-	modelFirstRun=Sequential() # init neural network
-	### DEFINE from INPUT HIDDEN LAYER
-	modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-	### ADD HIDDEN LAYER
-	for jj  in range(n_hidden_layers-1):
-		modelFirstRun.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-	
-	modelFirstRun.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
-	modelFirstRun.summary()
-	modelFirstRun.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
-	print("Running model.fit") 
-	history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_split=0.2,verbose=args.verbose)
 
-	if plot_curves:
-		fig = plt.figure(figsize=(20, 8))
-		fig.add_subplot(121)
-		plt.plot(history.history['loss'],'r',linewidth=3.0)
-		plt.plot(history.history['val_loss'],'b',linewidth=3.0)
-		plt.legend(['Training loss', 'Validation Loss'],fontsize=12)
-		plt.xlabel('Epochs',fontsize=12)
-		plt.ylabel('Loss',fontsize=12)
-		plt.title('Loss Curves',fontsize=12)
- 
-		# Accuracy Curves
-		fig.add_subplot(122)
-		plt.plot(history.history['acc'],'r',linewidth=3.0)
-		plt.plot(history.history['val_acc'],'b',linewidth=3.0)
-		plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=12)
-		plt.xlabel('Epochs',fontsize=12)
-		plt.ylabel('Accuracy',fontsize=12)
-		plt.title('Accuracy Curves',fontsize=12)
+	if args.cross_val:
+		training_data = []
+		training_labels = []
+		validation_data_list = []
+		skf = StratifiedKFold(n_splits=int(args.cross_val))
+		for train, test in skf.split(input_training,input_trainLabelsPr[:,0]):
+			training_data.append(input_training[train,:])
+			training_labels.append(input_trainLabelsPr[train,:])
+			validation_features = input_training[test,:]
+			validation_labels = input_trainLabelsPr[test,:]
+			validation_data_list.append((validation_features,validation_labels))
+	else:
+		index = int(input_training.shape[0]*0.8)
+		training_data = [input_training[:index,:]]
+		training_labels = [input_trainLabelsPr[:index,:]]
+		validation_features = input_training[index:,:]
+		validation_labels = input_trainLabelsPr[index:,:]
+		validation_data_list = [(validation_features, validation_labels)]
+      
+	accuracy_scores = []
+	for i,input_training in enumerate(training_data):
 		
-		file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
-		pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
-		pdf.savefig( fig )
-		pdf.close()
+		input_trainLabelsPr = training_labels[i]
+		validation_data = validation_data_list[i]
+		modelFirstRun=Sequential() # init neural network
+		### DEFINE from INPUT HIDDEN LAYER
+		modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		### ADD HIDDEN LAYER
+		for jj  in range(n_hidden_layers-1):
+			modelFirstRun.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		
+		modelFirstRun.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+		modelFirstRun.summary()
+		modelFirstRun.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
+		print("Running model.fit") 
+		history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_data=validation_data,verbose=args.verbose)
+
+		if plot_curves:
+			fig = plt.figure(figsize=(20, 8))
+			fig.add_subplot(121)
+			plt.plot(history.history['loss'],'r',linewidth=3.0)
+			plt.plot(history.history['val_loss'],'b',linewidth=3.0)
+			plt.legend(['Training loss', 'Validation Loss'],fontsize=12)
+			plt.xlabel('Epochs',fontsize=12)
+			plt.ylabel('Loss',fontsize=12)
+			plt.title('Loss Curves',fontsize=12)
 	
-	# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
-	if args.optim_epoch==0:
-		optimal_number_of_epochs = np.argmin(history.history['val_loss'])
-	elif args.optim_epoch==1:
-		optimal_number_of_epochs = np.argmax(history.history['val_acc'])
-	print("optimal number of epochs:", optimal_number_of_epochs+1)
-	# print loss and accuracy at best epoch to file
-	loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
-	accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
-	with open(os.path.join(outpath,'val_loss_val_acc_best_epoch.txt'), 'w') as out_file:
-		out_file.write('Final loss and accuracy (best epoch): %.6f\t%.6f\n'%(loss_at_best_epoch,accurracy_at_best_epoch))
+			# Accuracy Curves
+			fig.add_subplot(122)
+			plt.plot(history.history['acc'],'r',linewidth=3.0)
+			plt.plot(history.history['val_acc'],'b',linewidth=3.0)
+			plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=12)
+			plt.xlabel('Epochs',fontsize=12)
+			plt.ylabel('Accuracy',fontsize=12)
+			plt.title('Accuracy Curves',fontsize=12)
+			
+			file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
+			pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
+			pdf.savefig( fig )
+			pdf.close()
+		
+		# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
+		if args.optim_epoch==0:
+			optimal_number_of_epochs = np.argmin(history.history['val_loss'])
+		elif args.optim_epoch==1:
+			optimal_number_of_epochs = np.argmax(history.history['val_acc'])
 
-	model=Sequential() # init neural network
-	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-	for jj in range(n_hidden_layers-1):
-		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-	model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
-	model.summary()
-	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
-	history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit,validation_split=0.2, verbose=args.verbose)	
+		print("optimal number of epochs:", optimal_number_of_epochs+1)
+		# print loss and accuracy at best epoch to file
+		loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
+		accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
+		with open(os.path.join(outpath,'val_loss_val_acc_best_epoch.txt'), 'w') as out_file:
+			out_file.write('Final loss and accuracy (best epoch): %.6f\t%.6f\n'%(loss_at_best_epoch,accurracy_at_best_epoch))
+		model=Sequential() # init neural network
+		model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		for jj in range(n_hidden_layers-1):
+			model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+		model.summary()
+		model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
+		history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose)	
+
+		accuracy = history.history['acc'][-1]
+		accuracy_scores.append(accuracy)
+
 	model.save_weights(model_name)
-	print("Optimal number of epochs selected:", optimal_number_of_epochs+1)
 	print("Model saved as:", model_name)
-
+	print('Overall validation accuracy:', np.mean(accuracy_scores))
+   
 
 if test_nn and args.test > 0.:
 	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
