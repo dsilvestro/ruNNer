@@ -51,6 +51,33 @@ p.add_argument('-cross_val',              type=int,   help='Set number of cross 
 args = p.parse_args()
 
 
+args.mode = 'train'
+args.t = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_features_0.90.npy'
+args.r = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/feature_files/training_features/rescaling_array.npy'
+args.l = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_labels_0.90.npy'
+args.test = 0.
+args.seed = 1234
+args.batch_size = 100
+args.epochs = 500
+args.feature_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/P1.000C0.100_U_STC.txt'
+args.train_instance_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/instance_indices_P1.000C0.100_U_STC.txt'
+args.threads = 1
+args.outpath = '/Users/tobias/Desktop/NN_test'
+args.cross_val = 2
+
+args.layers = 1
+args.nodes = [1.]
+args.randomize_data = 1
+
+args.actfunc = 1
+args.kerninit = 1
+args.loadNN = ''#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/training_features/training_features_current_mammal_occs/all_instances_all_features/NN_test/NN_1layers1000epochs50batchreluglorot_normal_1234'
+args.e = 0#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/past_feature_arrays/unknown_data_features_0MA.npy'
+args.verbose = 1
+args.optim_epoch = 0
+args.n_labels = 2
+
+
 # NN SETTINGS
 n_hidden_layers = args.layers # number of extra hidden layers
 max_epochs = args.epochs
@@ -194,6 +221,7 @@ if run_train:
 		validation_data_list = [(validation_features, validation_labels)]
       
 	accuracy_scores = []
+	best_epochs = []
 	for i,input_training in enumerate(training_data):
 		
 		input_trainLabelsPr = training_labels[i]
@@ -240,7 +268,7 @@ if run_train:
 			optimal_number_of_epochs = np.argmin(history.history['val_loss'])
 		elif args.optim_epoch==1:
 			optimal_number_of_epochs = np.argmax(history.history['val_acc'])
-
+		best_epochs.append(optimal_number_of_epochs)
 		print("optimal number of epochs:", optimal_number_of_epochs+1)
 		# print loss and accuracy at best epoch to file
 		loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
@@ -261,7 +289,8 @@ if run_train:
 
 	model.save_weights(model_name)
 	print("Model saved as:", model_name)
-	print('Overall validation accuracy:', np.mean(accuracy_scores))
+	print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
+	print('Validation accuracy (average):', np.mean(accuracy_scores))
    
 
 if test_nn and args.test > 0.:
