@@ -4,6 +4,7 @@ import matplotlib
 matplotlib.use('Agg')
 import keras, os
 import numpy as np
+import pandas as pd
 from numpy import *
 import scipy.special
 np.set_printoptions(suppress= 1) # prints floats, no scientific notation
@@ -101,7 +102,13 @@ elif not os.path.exists(outpath):
  	os.makedirs(outpath)
 
 if args.loadNN == "":
-	model_name = os.path.join(outpath,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
+	if args.cross_val > 1:
+		model_out = os.path.join(outpath,'cv')
+		if not os.path.exists(model_out):
+			os.makedirs(model_out)
+	else:
+		model_out = outpath
+	model_name = os.path.join(model_out,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
 else:
 	model_name = args.loadNN
 
@@ -128,8 +135,8 @@ if run_train:
 		training_features = np.load(file_training_data) # load npy file
 	training_features/=rescale_factors
 	
-	print(np.amin(training_features,0))
-	print(np.amax(training_features,0))
+	#print(np.amin(training_features,0))
+	#print(np.amax(training_features,0))
 	
 	# select features and instances, if files provided:
 	if args.feature_indices:
@@ -174,7 +181,7 @@ if run_train:
 		input_trainLabelsPr = input_trainLabelsPr[rnd_indx,:]
 
 
-	if args.cross_val:
+	if args.cross_val > 1:
 		training_data = []
 		training_labels = []
 		validation_data_list = []
@@ -231,11 +238,13 @@ if run_train:
 			plt.ylabel('Accuracy',fontsize=12)
 			plt.title('Accuracy Curves',fontsize=12)
 			
-			file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
-			pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
-			pdf.savefig( fig )
-			pdf.close()
-		
+			#file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
+			#pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
+			#pdf.savefig( fig )
+			#pdf.close()
+
+      
+
 		# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
 		if args.optim_epoch==0:
 			optimal_number_of_epochs = np.argmin(history.history['val_loss'])
@@ -246,8 +255,6 @@ if run_train:
 		# print loss and accuracy at best epoch to file
 		loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
 		accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
-		with open(os.path.join(outpath,'val_loss_val_acc_best_epoch.txt'), 'w') as out_file:
-			out_file.write('Final loss and accuracy (best epoch): %.6f\t%.6f\n'%(loss_at_best_epoch,accurracy_at_best_epoch))
 		model=Sequential() # init neural network
 		model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
 		for jj in range(n_hidden_layers-1):
@@ -258,10 +265,27 @@ if run_train:
 		history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose)	
 
 		accuracy = history.history['acc'][-1]
-		accuracy_scores.append(accuracy)
+		accuracy_scores.append(np.round(accuracy,6))
+		weight_file_name = model_name+'_cv_%i'%i
+		model.save_weights(weight_file_name)
+		print("Model saved as:", weight_file_name)
 
-	model.save_weights(model_name)
-	print("Model saved as:", model_name)
+	# plot all accuracy curves (multiple pages in case of cv)
+	file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
+	pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
+	for figure in range(1, fig.number + 1):
+		pdf.savefig(figure)
+	pdf.close()
+	plt.close('all')   
+	# write output text file
+	info_out = os.path.join(outpath,'info.txt')
+	args_data = pd.DataFrame.from_dict(vars(args),orient='index')
+   # adjust seed since it may have been randomely drawn
+	args_data[args_data.index=='seed'] = rseed
+   # add the list of best epochs and accuracies to output df
+	args_data.loc['best_epoch'] = str(best_epochs)
+	args_data.loc['accuracies'] = str((accuracy_scores))
+	args_data.to_csv(info_out,header=False, sep='\t')
 	print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
 	print('Validation accuracy (average):', np.mean(accuracy_scores))
    
