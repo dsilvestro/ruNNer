@@ -124,7 +124,6 @@ if file_training_labels:
 	except: 
 		training_labels = np.load(file_training_labels) # load npy file
 
-
 # process train dataset
 train_nn = 0
 test_nn  = 0
@@ -134,10 +133,12 @@ if run_train:
 	except: 
 		training_features = np.load(file_training_data) # load npy file
 	training_features/=rescale_factors
-	
-	#print(np.amin(training_features,0))
-	#print(np.amax(training_features,0))
-	
+
+	# scale data using the min-max scaler (between 0 and 1)
+	scaler = MinMaxScaler()
+	scaler.fit(training_features)
+	training_features = scaler.transform(training_features)
+
 	# select features and instances, if files provided:
 	if args.feature_indices:
 		feature_index_array = np.loadtxt(args.feature_indices,dtype=int)
@@ -146,24 +147,32 @@ if run_train:
 		instance_index_array = np.loadtxt(args.train_instance_indices,dtype=int)
 		training_features = training_features[instance_index_array,:]
 		training_labels = training_labels[instance_index_array]
-	
-	print('Training data shape:', training_features.shape)
-	
-	# scale data using the min-max scaler (between 0 and 1)
-	scaler = MinMaxScaler()
-	scaler.fit(training_features)
-	training_features = scaler.transform(training_features)
+
+	# split into training and test set
+	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
+	#print(test_indx)
+	input_test = training_features[test_indx,:]
+	#print(input_test)
+	input_testLabels = training_labels[test_indx].astype(int)
+	input_testLabelsPr = np.zeros((input_test.shape[0], len(np.unique(input_testLabels))) )
+	j = 0
+	for i in np.sort(np.unique(input_testLabels)):
+		input_testLabelsPr[input_testLabels==i,j]=1
+		j+=1
 
 	train_indx = range( int(training_features.shape[0]*(1-args.test)) )
 	input_training = training_features[train_indx,:]
 	input_trainLabels = training_labels[train_indx].astype(int)
 	input_trainLabelsPr = np.zeros((len(input_training[train_indx,0]), len(np.unique(input_trainLabels))) )
-	j =0
+	j = 0
 	for i in np.sort(np.unique(input_trainLabels)):
 		input_trainLabelsPr[input_trainLabels==i,j]=1
 		j+=1
 	if batch_size_fit==0:
 		batch_size_fit = int(input_training.shape[0])
+	
+	print('Training data shape:', input_training.shape)
+
 	train_nn = 1
 	test_nn  = 1
 	
@@ -266,7 +275,10 @@ if run_train:
 
 		accuracy = history.history['acc'][-1]
 		accuracy_scores.append(np.round(accuracy,6))
-		weight_file_name = model_name+'_cv_%i'%i
+		if args.cross_val > 1:
+			weight_file_name = model_name+'_cv_%i'%i
+		else:
+			weight_file_name = model_name
 		model.save_weights(weight_file_name)
 		print("Model saved as:", weight_file_name)
 
@@ -282,27 +294,19 @@ if run_train:
 	args_data = pd.DataFrame.from_dict(vars(args),orient='index')
    # adjust seed since it may have been randomely drawn
 	args_data[args_data.index=='seed'] = rseed
+	# add the shape of the training data input
+	args_data.loc['total_training_array_shape'] = str(input_training.shape)
    # add the list of best epochs and accuracies to output df
 	args_data.loc['best_epoch'] = str(best_epochs)
 	args_data.loc['accuracies'] = str((accuracy_scores))
 	args_data.to_csv(info_out,header=False, sep='\t')
+	# print some info to screen
+	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
 	print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
 	print('Validation accuracy (average):', np.mean(accuracy_scores))
    
 
-if test_nn and args.test > 0.:
-	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
-	print(test_indx)
-	input_test = training_features[test_indx,:]
-	print(input_test.shape)
-	input_testLabels = training_labels[test_indx].astype(int)
-	print(input_testLabels.shape)
-	input_testLabelsPr = np.zeros((input_test.shape[0], len(np.unique(input_testLabels))) )
-	j =0
-	for i in np.sort(np.unique(input_testLabels)):
-		input_testLabelsPr[input_testLabels==i,j]=1
-		j+=1
-	
+if test_nn and args.test > 0. and not args.cross_val > 1:	
 	predictions=np.argmax(model.predict(input_test),axis=1)
 	confusion_matrix(input_testLabels,predictions)
 	scores=model.evaluate(input_test,input_testLabelsPr,verbose=0)

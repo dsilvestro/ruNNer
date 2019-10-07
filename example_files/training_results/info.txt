@@ -1,0 +1,28 @@
+mode	train
+t	example_files/training_features.txt
+l	example_files/training_labels.txt
+e	0
+r	1
+feature_indices	0
+train_instance_indices	0
+test	0.2
+n_labels	0
+outlabels	[]
+layers	2
+outpath	example_files/training_results/
+outname	
+batch_size	0
+epochs	100
+optim_epoch	0
+verbose	1
+loadNN	
+seed	1234
+actfunc	1
+kerninit	1
+nodes	[1.0]
+randomize_data	1
+threads	0
+cross_val	0
+total_training_array_shape	(640, 100)
+best_epoch	[99]
+accuracies	[0.998438]
