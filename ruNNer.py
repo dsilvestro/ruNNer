@@ -4,7 +4,6 @@ import matplotlib
 matplotlib.use('Agg')
 import keras, os
 import numpy as np
-import pandas as pd
 from numpy import *
 import scipy.special
 np.set_printoptions(suppress= 1) # prints floats, no scientific notation
@@ -291,16 +290,19 @@ if run_train:
 	plt.close('all')   
 	# write output text file
 	info_out = os.path.join(outpath,'info.txt')
-	args_data = pd.DataFrame.from_dict(vars(args),orient='index')
+	args_data = vars(args)
    # adjust seed since it may have been randomely drawn
-	args_data[args_data.index=='seed'] = rseed
+	args_data['seed'] = rseed
 	# add the shape of the training data input
-	args_data.loc['total_training_array_shape'] = str(input_training.shape)
+	args_data['total_training_array_shape'] = str(input_training.shape)
    # add the list of best epochs and accuracies to output df
-	args_data.loc['best_epoch'] = str(best_epochs)
-	args_data.loc['accuracies'] = str((accuracy_scores))
-	args_data.to_csv(info_out,header=False, sep='\t')
-	# print some info to screen
+	args_data['best_epoch'] = str(best_epochs)
+	args_data['accuracies'] = str((accuracy_scores))	
+	with open(info_out,"w") as f:
+		for i in args_data:
+			f.write(f"{i}\t{str(args_data[i])}\n") 
+   
+   # print some info to screen
 	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
 	print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
 	print('Validation accuracy (average):', np.mean(accuracy_scores))
