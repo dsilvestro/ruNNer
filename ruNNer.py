@@ -48,8 +48,8 @@ p.add_argument('-nodes',                  type=float, help='n. nodes (multiplier
 p.add_argument('-randomize_data',         type=float, help='shuffle order data entries', default= 1, metavar= 1)
 p.add_argument('-threads',                type=int,   help='n. of threads (0: system picks an appropriate number)', default= 0, metavar= 0)
 p.add_argument('-cross_val',              type=int,   help='Set number of cross validations to run. Set to 0 to turn off.',default=0)
+p.add_argument('-validation_off',         action="store_true",help='If flag is used, no validation set will be used when training the model. Instead training will run until maximum number of epochs set with "-epochs" flag.',default=False)
 args = p.parse_args()
-
 
 # NN SETTINGS
 n_hidden_layers = args.layers # number of extra hidden layers
@@ -200,6 +200,12 @@ if run_train:
 			validation_features = input_training[test,:]
 			validation_labels = input_trainLabelsPr[test,:]
 			validation_data_list.append((validation_features,validation_labels))
+	elif args.validation_off:
+		training_data = [input_training]
+		training_labels = [input_trainLabelsPr]
+		validation_features = []
+		validation_labels = []
+		validation_data_list = [(validation_features, validation_labels)]
 	else:
 		index = int(input_training.shape[0]*0.8)
 		training_data = [input_training[:index,:]]
@@ -211,7 +217,6 @@ if run_train:
 	accuracy_scores = []
 	best_epochs = []
 	for i,input_training in enumerate(training_data):
-		
 		input_trainLabelsPr = training_labels[i]
 		validation_data = validation_data_list[i]
 		modelFirstRun=Sequential() # init neural network
@@ -224,56 +229,61 @@ if run_train:
 		modelFirstRun.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
 		modelFirstRun.summary()
 		modelFirstRun.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
-		print("Running model.fit") 
-		history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_data=validation_data,verbose=args.verbose)
+		print("Running model.fit")
+      # if no validation data (set by user) just train until final epoch
+		if len(validation_data[0]) == 0:
+			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,verbose=args.verbose)
+			model = modelFirstRun
+			print("Running training without validation set")
+		else: 
+			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_data=validation_data,verbose=args.verbose)
 
-		if plot_curves:
-			fig = plt.figure(figsize=(20, 8))
-			fig.add_subplot(121)
-			plt.plot(history.history['loss'],'r',linewidth=3.0)
-			plt.plot(history.history['val_loss'],'b',linewidth=3.0)
-			plt.legend(['Training loss', 'Validation Loss'],fontsize=12)
-			plt.xlabel('Epochs',fontsize=12)
-			plt.ylabel('Loss',fontsize=12)
-			plt.title('Loss Curves',fontsize=12)
-	
-			# Accuracy Curves
-			fig.add_subplot(122)
-			plt.plot(history.history['acc'],'r',linewidth=3.0)
-			plt.plot(history.history['val_acc'],'b',linewidth=3.0)
-			plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=12)
-			plt.xlabel('Epochs',fontsize=12)
-			plt.ylabel('Accuracy',fontsize=12)
-			plt.title('Accuracy Curves',fontsize=12)
-			
-			#file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
-			#pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
-			#pdf.savefig( fig )
-			#pdf.close()
+			if plot_curves:
+				fig = plt.figure(figsize=(20, 8))
+				fig.add_subplot(121)
+				plt.plot(history.history['loss'],'r',linewidth=3.0)
+				plt.plot(history.history['val_loss'],'b',linewidth=3.0)
+				plt.legend(['Training loss', 'Validation Loss'],fontsize=12)
+				plt.xlabel('Epochs',fontsize=12)
+				plt.ylabel('Loss',fontsize=12)
+				plt.title('Loss Curves',fontsize=12)
 
-      
+				# Accuracy Curves
+				fig.add_subplot(122)
+				plt.plot(history.history['acc'],'r',linewidth=3.0)
+				plt.plot(history.history['val_acc'],'b',linewidth=3.0)
+				plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=12)
+				plt.xlabel('Epochs',fontsize=12)
+				plt.ylabel('Accuracy',fontsize=12)
+				plt.title('Accuracy Curves',fontsize=12)
+				
+				#file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
+				#pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
+				#pdf.savefig( fig )
+				#pdf.close()
 
-		# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
-		if args.optim_epoch==0:
-			optimal_number_of_epochs = np.argmin(history.history['val_loss'])
-		elif args.optim_epoch==1:
-			optimal_number_of_epochs = np.argmax(history.history['val_acc'])
-		best_epochs.append(optimal_number_of_epochs)
-		print("optimal number of epochs:", optimal_number_of_epochs+1)
-		# print loss and accuracy at best epoch to file
-		loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
-		accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
-		model=Sequential() # init neural network
-		model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-		for jj in range(n_hidden_layers-1):
-			model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-		model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
-		model.summary()
-		model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
-		history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose)	
+			# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
+			if args.optim_epoch==0:
+				optimal_number_of_epochs = np.argmin(history.history['val_loss'])
+			elif args.optim_epoch==1:
+				optimal_number_of_epochs = np.argmax(history.history['val_acc'])
+			best_epochs.append(optimal_number_of_epochs)
+			print("optimal number of epochs:", optimal_number_of_epochs+1)
+			# print loss and accuracy at best epoch to file
+			loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
+			accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
+			model=Sequential() # init neural network
+			model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+			for jj in range(n_hidden_layers-1):
+				model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+			model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+			model.summary()
+			model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
+			history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose)	
 
-		accuracy = history.history['acc'][-1]
-		accuracy_scores.append(np.round(accuracy,6))
+			accuracy = history.history['acc'][-1]
+			accuracy_scores.append(np.round(accuracy,6))
+
 		if args.cross_val > 1:
 			weight_file_name = model_name+'_cv_%i'%i
 		else:
@@ -281,13 +291,17 @@ if run_train:
 		model.save_weights(weight_file_name)
 		print("Model saved as:", weight_file_name)
 
-	# plot all accuracy curves (multiple pages in case of cv)
-	file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
-	pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
-	for figure in range(1, fig.number + 1):
-		pdf.savefig(figure)
-	pdf.close()
-	plt.close('all')   
+	try:
+		# plot all accuracy curves (multiple pages in case of cv)
+		file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
+		pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
+		for figure in range(1, fig.number + 1):
+			pdf.savefig(figure)
+		pdf.close()
+		plt.close('all')
+	except:
+		no_plot=True
+
 	# write output text file
 	info_out = os.path.join(outpath,'info.txt')
 	args_data = vars(args)
@@ -295,18 +309,20 @@ if run_train:
 	args_data['seed'] = rseed
 	# add the shape of the training data input
 	args_data['total_training_array_shape'] = str(input_training.shape)
-   # add the list of best epochs and accuracies to output df
-	args_data['best_epoch'] = str(best_epochs)
-	args_data['accuracies'] = str((accuracy_scores))	
+
+	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
+
+	if not args.validation_off:
+	   # add the list of best epochs and accuracies to output df
+		args_data['best_epoch'] = str(best_epochs)
+		args_data['accuracies'] = str((accuracy_scores))	
+		print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
+		print('Validation accuracy (average):', np.mean(accuracy_scores))
+
 	with open(info_out,"w") as f:
 		for i in args_data:
 			f.write(f"{i}\t{str(args_data[i])}\n") 
-   
-   # print some info to screen
-	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
-	print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
-	print('Validation accuracy (average):', np.mean(accuracy_scores))
-   
+      
 
 if test_nn and args.test > 0. and not args.cross_val > 1:	
 	predictions=np.argmax(model.predict(input_test),axis=1)
