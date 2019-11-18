@@ -147,6 +147,15 @@ if run_train:
 		training_features = training_features[instance_index_array,:]
 		training_labels = training_labels[instance_index_array]
 
+		
+	dSize = np.shape(training_features)[0]
+	if randomize_data:
+		rnd_indx = np.random.choice(np.arange(dSize),dSize,replace = False)
+		# shuffle data
+		training_features = training_features[rnd_indx,:] + 0
+		training_labels = training_labels[rnd_indx]+0
+	
+	
 	# split into training and test set
 	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
 	#print(test_indx)
@@ -178,15 +187,7 @@ if run_train:
 	# DEF SIZE OF THE FEATURES
 	hSize = np.shape(input_training)[1]
 	nCat  = np.shape(input_trainLabelsPr)[1]
-	
-	# size of dataset
 	dSize = np.shape(input_training)[0]
-	if randomize_data:
-		rnd_indx = np.random.choice(np.arange(dSize),dSize,replace = False)
-		# shuffle data
-		input_training = input_training[rnd_indx,:]
-		input_trainLabels = input_trainLabels[rnd_indx]
-		input_trainLabelsPr = input_trainLabelsPr[rnd_indx,:]
 
 
 	if args.cross_val > 1:
