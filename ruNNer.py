@@ -14,12 +14,12 @@ from keras.layers import Dense
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow import set_random_seed
+# from tensorflow import set_random_seed
 import matplotlib.backends.backend_pdf
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras.backend
-import argparse, sys
+import argparse, sys, copy
 
 
 p = argparse.ArgumentParser() #description='<input file>') 
@@ -38,7 +38,8 @@ p.add_argument('-outpath',                type=str,   help='', default= "")
 p.add_argument('-outname',                type=str,   help='', default= "")
 p.add_argument('-batch_size',             type=int,   help='if 0: dataset is not sliced into smaller batches', default= 0, metavar= 0)
 p.add_argument('-epochs',                 type=int,   help='', default= 100, metavar= 100)
-p.add_argument('-optim_epoch',            type=int,   help='0: min loss function; 1: max validation accuracy',default=0)
+p.add_argument('-class_weight',           type=int,   help='0) uniform wieghts; 1) weight for imbalanced classes ', default= 1, metavar= 1)
+p.add_argument('-optim_epoch',            type=int,   help='0) min loss function; 1) max validation accuracy',default=0)
 p.add_argument('-verbose',                type=int,   help='', default= 1, metavar= 1)
 p.add_argument('-loadNN',                 type=str,   help='', default= '', metavar= '')
 p.add_argument('-seed',                   type=int,   help='', default= 0, metavar= 0)
@@ -50,6 +51,13 @@ p.add_argument('-threads',                type=int,   help='n. of threads (0: sy
 p.add_argument('-cross_val',              type=int,   help='Set number of cross validations to run. Set to 0 to turn off.',default=0)
 p.add_argument('-validation_off',         action="store_true",help='If flag is used, no validation set will be used when training the model. Instead training will run until maximum number of epochs set with "-epochs" flag.',default=False)
 args = p.parse_args()
+
+useBiasNode = True
+
+
+out_activation_func = "softmax" # "sigmoid" # 
+loss_function = "categorical_crossentropy" #"binary_crossentropy" #  #"kullback_leibler_divergence" #  "mean_squared_error" # 
+print_full_test_output = 0
 
 # NN SETTINGS
 n_hidden_layers = args.layers # number of extra hidden layers
@@ -81,12 +89,15 @@ if args.seed==0: rseed = np.random.randint(1000,9999)
 else: rseed = args.seed
 np.random.seed(rseed)
 np.random.seed(rseed)
-set_random_seed(rseed)
+tf.random.set_seed(rseed)
 
-n_threads = args.threads
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=n_threads, inter_op_parallelism_threads=n_threads)
-sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-keras.backend.set_session(sess)
+# n_threads = args.threads
+# session_conf = tf.ConfigProto(intra_op_parallelism_threads=n_threads, inter_op_parallelism_threads=n_threads)
+# sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+# keras.backend.set_session(sess)
+
+
+
 
 activation_functions = ["relu", "tanh", "sigmoid"]
 activation_function = activation_functions[args.actfunc-1]
@@ -107,7 +118,9 @@ if args.loadNN == "":
 			os.makedirs(model_out)
 	else:
 		model_out = outpath
-	model_name = os.path.join(model_out,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
+	
+	model_name = os.path.join(model_out,"model_NN_%s_%s" % (args.outname, rseed))
+	#model_name = os.path.join(model_out,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
 else:
 	model_name = args.loadNN
 
@@ -120,6 +133,20 @@ file_training_labels = args.l # training labels
 if file_training_labels:
 	try:
 		training_labels = np.loadtxt(file_training_labels) # load txt file
+		if np.min(training_labels)>0:
+			training_labels= training_labels-np.min(training_labels)
+		#
+		#"IUCN binary"
+		#cat = 3
+		#training_labels[training_labels<=cat] = 0
+		#training_labels[training_labels> cat] = 1
+		#
+		#"IUCN 3 categories"
+		##training_labels[training_labels<=1] = 10
+		##training_labels[training_labels<=3] = 11
+		##training_labels[training_labels==4] = 12
+		##training_labels = training_labels-10
+		
 	except: 
 		training_labels = np.load(file_training_labels) # load npy file
 
@@ -142,11 +169,11 @@ if run_train:
 	if args.feature_indices:
 		feature_index_array = np.loadtxt(args.feature_indices,dtype=int)
 		training_features = training_features[:,feature_index_array]
+		
 	if args.train_instance_indices:
 		instance_index_array = np.loadtxt(args.train_instance_indices,dtype=int)
 		training_features = training_features[instance_index_array,:]
-		training_labels = training_labels[instance_index_array]
-
+		training_labels = training_labels[instance_index_array]	
 		
 	dSize = np.shape(training_features)[0]
 	if randomize_data:
@@ -155,27 +182,30 @@ if run_train:
 		training_features = training_features[rnd_indx,:] + 0
 		training_labels = training_labels[rnd_indx]+0
 	
-	
+	init_training_features = copy.deepcopy(training_features)
+	init_training_labels =   copy.deepcopy(training_labels)
 	# split into training and test set
 	test_indx = range( int(training_features.shape[0]*(1-args.test)), training_features.shape[0] )
 	#print(test_indx)
 	input_test = training_features[test_indx,:]
 	#print(input_test)
 	input_testLabels = training_labels[test_indx].astype(int)
-	input_testLabelsPr = np.zeros((input_test.shape[0], len(np.unique(input_testLabels))) )
-	j = 0
-	for i in np.sort(np.unique(input_testLabels)):
-		input_testLabelsPr[input_testLabels==i,j]=1
-		j+=1
-
+	input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
+	#input_testLabelsPr = np.zeros((input_test.shape[0], len(np.unique(input_testLabels))) )
+	#j = 0
+	#for i in np.sort(np.unique(input_testLabels)):
+	#	input_testLabelsPr[input_testLabels==i,j]=1
+	#	j+=1
+	
 	train_indx = range( int(training_features.shape[0]*(1-args.test)) )
 	input_training = training_features[train_indx,:]
 	input_trainLabels = training_labels[train_indx].astype(int)
-	input_trainLabelsPr = np.zeros((len(input_training[train_indx,0]), len(np.unique(input_trainLabels))) )
-	j = 0
-	for i in np.sort(np.unique(input_trainLabels)):
-		input_trainLabelsPr[input_trainLabels==i,j]=1
-		j+=1
+	input_trainLabelsPr =  tf.keras.utils.to_categorical(input_trainLabels)
+	#input_trainLabelsPr = np.zeros((len(input_training[train_indx,0]), len(np.unique(input_trainLabels))) )
+	#j = 0
+	#for i in np.sort(np.unique(input_trainLabels)):
+	#	input_trainLabelsPr[input_trainLabels==i,j]=1
+	#	j+=1
 	if batch_size_fit==0:
 		batch_size_fit = int(input_training.shape[0])
 	
@@ -183,13 +213,13 @@ if run_train:
 
 	train_nn = 1
 	test_nn  = 1
-	
+		
 	# DEF SIZE OF THE FEATURES
 	hSize = np.shape(input_training)[1]
 	nCat  = np.shape(input_trainLabelsPr)[1]
 	dSize = np.shape(input_training)[0]
 
-
+	index = input_training.shape[0]
 	if args.cross_val > 1:
 		training_data = []
 		training_labels = []
@@ -215,29 +245,46 @@ if run_train:
 		validation_labels = input_trainLabelsPr[index:,:]
 		validation_data_list = [(validation_features, validation_labels)]
       
+	# GET CLASS WEIGHT
+	if args.class_weight:
+		#res = dict(zip(test_keys, test_values)) 
+		from sklearn.utils import class_weight
+		class_weights = class_weight.compute_class_weight('balanced', np.unique(input_trainLabels[:index]), input_trainLabels[:index])	
+		#print(len(training_labels) / (len(np.unique(training_labels)) *  np.unique(training_labels, return_counts=True)[1]) )
+		#class_weights = class_weights*0+1
+		print(class_weights)
+		print(np.unique(input_trainLabels[:index]))
+		print(np.unique(input_trainLabels[:index], return_counts=True))
+		#quit()	
+	else:
+		class_weights = np.ones(nCat)
+		print(class_weights)
+	
+	
 	accuracy_scores = []
+	loss_scores = []
 	best_epochs = []
 	for i,input_training in enumerate(training_data):
 		input_trainLabelsPr = training_labels[i]
 		validation_data = validation_data_list[i]
 		modelFirstRun=Sequential() # init neural network
 		### DEFINE from INPUT HIDDEN LAYER
-		modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+		modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
 		### ADD HIDDEN LAYER
 		for jj  in range(n_hidden_layers-1):
-			modelFirstRun.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+			modelFirstRun.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
 		
-		modelFirstRun.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+		modelFirstRun.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
 		modelFirstRun.summary()
-		modelFirstRun.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
+		modelFirstRun.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 		print("Running model.fit")
       # if no validation data (set by user) just train until final epoch
 		if len(validation_data[0]) == 0:
-			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,verbose=args.verbose)
+			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,verbose=args.verbose, class_weight=class_weights)
 			model = modelFirstRun
 			print("Running training without validation set")
 		else: 
-			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_data=validation_data,verbose=args.verbose)
+			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,validation_data=validation_data,verbose=args.verbose, class_weight=class_weights)
 
 			if plot_curves:
 				fig = plt.figure(figsize=(20, 8))
@@ -251,8 +298,9 @@ if run_train:
 
 				# Accuracy Curves
 				fig.add_subplot(122)
-				plt.plot(history.history['acc'],'r',linewidth=3.0)
-				plt.plot(history.history['val_acc'],'b',linewidth=3.0)
+				#print(history.history)
+				plt.plot(history.history['accuracy'],'r',linewidth=3.0)
+				plt.plot(history.history['val_accuracy'],'b',linewidth=3.0)
 				plt.legend(['Training Accuracy', 'Validation Accuracy'],fontsize=12)
 				plt.xlabel('Epochs',fontsize=12)
 				plt.ylabel('Accuracy',fontsize=12)
@@ -267,23 +315,24 @@ if run_train:
 			if args.optim_epoch==0:
 				optimal_number_of_epochs = np.argmin(history.history['val_loss'])
 			elif args.optim_epoch==1:
-				optimal_number_of_epochs = np.argmax(history.history['val_acc'])
+				optimal_number_of_epochs = np.argmax(history.history['val_accuracy'])
 			best_epochs.append(optimal_number_of_epochs)
 			print("optimal number of epochs:", optimal_number_of_epochs+1)
 			# print loss and accuracy at best epoch to file
 			loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
-			accurracy_at_best_epoch = history.history['val_acc'][optimal_number_of_epochs]
+			accurracy_at_best_epoch = history.history['val_accuracy'][optimal_number_of_epochs]
 			model=Sequential() # init neural network
-			model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+			model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
 			for jj in range(n_hidden_layers-1):
-				model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-			model.add(Dense(units=nCat,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+				model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+			model.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
 			model.summary()
-			model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
-			history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose)	
+			model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
+			history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose, class_weight=class_weights)	
 
-			accuracy = history.history['acc'][-1]
+			accuracy = history.history['val_accuracy'][-1]
 			accuracy_scores.append(np.round(accuracy,6))
+			loss_scores.append(history.history['val_loss'][-1])
 
 		if args.cross_val > 1:
 			weight_file_name = model_name+'_cv_%i'%i
@@ -304,7 +353,7 @@ if run_train:
 		no_plot=True
 
 	# write output text file
-	info_out = os.path.join(outpath,'info.txt')
+	info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('trained_model_','') )
 	args_data = vars(args)
    # adjust seed since it may have been randomely drawn
 	args_data['seed'] = rseed
@@ -317,21 +366,53 @@ if run_train:
 	   # add the list of best epochs and accuracies to output df
 		args_data['best_epoch'] = str(best_epochs)
 		args_data['accuracies'] = str((accuracy_scores))	
+		args_data['loss_scores'] = str((loss_scores))	
 		print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
 		print('Validation accuracy (average):', np.mean(accuracy_scores))
 
-	with open(info_out,"w") as f:
-		for i in args_data:
-			f.write(f"{i}\t{str(args_data[i])}\n") 
+	out_file = open(info_out,"w")
+	for i in args_data:
+		out_file.writelines(f"{i}\t{str(args_data[i])}\n") 
       
+if args.cross_val>1:
+	# re-train the NN based on entire dataset (no validation)
+	# and run it on test set
+	input_training = init_training_features[train_indx,:]
+	input_trainLabels = init_training_labels[train_indx].astype(int)
+	input_trainLabelsPr =  tf.keras.utils.to_categorical(input_trainLabels)
+	
+	model=Sequential() # init neural network
+	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+	for jj in range(n_hidden_layers-1):
+		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+	model.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
+	model.summary()
+	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
+	history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, verbose=args.verbose, class_weight=class_weights)	
+	model.save_weights(weight_file_name)
+	print("Model saved as:", model_name+"_CV")
+	
 
-if test_nn and args.test > 0. and not args.cross_val > 1:	
-	predictions=np.argmax(model.predict(input_test),axis=1)
-	confusion_matrix(input_testLabels,predictions)
+
+
+if test_nn and args.test > 0.: # and not args.cross_val > 1:	
+	estimate_par = model.predict(input_test)
+	predictions=np.argmax(estimate_par,axis=1)
+	if print_full_test_output:
+		for i in range(len(estimate_par)):
+			print( input_testLabels[i], estimate_par[i], input_testLabelsPr[i] )
+	
+	cM = confusion_matrix(input_testLabels,predictions)
+	print("Confusion matrix:\n", cM)
+	print( (np.array(cM).T / np.sum(np.array(cM),1)).T)
 	scores=model.evaluate(input_test,input_testLabelsPr,verbose=0)
 	print("\nTest accuracy rate: %.2f%%"%(scores[1]*100))
 	print("Test error rate: %.2f%%"%(100-scores[1]*100))
 	print('Test cross-entropy loss:',round(scores[0],3),"\n")
+	out_file.writelines(f"\nTest accuracy rate\t%s " %(scores[1])) 
+	out_file.writelines(f"\nTest cross-entropy loss\t%s " %(scores[0])) 
+	out_file.writelines(f"\nConfusion matrix:\n%s" % cM)
+	out_file.writelines(f"\nRescaled confusion matrix:\n%s" % ((np.array(cM).T / np.sum(np.array(cM),1)).T))
 
 
 
@@ -370,12 +451,12 @@ if run_empirical:
 	# DEF SIZE OF THE FEATURES
 	hSize = empirical_features.shape[1]
 	model=Sequential() # init neural network
-	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
+	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
 	for jj  in range(n_hidden_layers-1):
-		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=True))
-	model.add(Dense(units=size_output,activation="softmax",kernel_initializer=kernel_init,use_bias=True))
+		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+	model.add(Dense(units=size_output,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
 	model.summary()
-	model.compile(loss="categorical_crossentropy",optimizer="adam",metrics=["accuracy"])
+	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 	model.load_weights(model_name, by_name=False)
 	print("done.")
 	#print(model.get_config())
