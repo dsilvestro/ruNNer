@@ -394,7 +394,7 @@ if args.cross_val>1:
 	model.summary()
 	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 	history=model.fit(input_training,input_trainLabelsPr,epochs=cv_avg_epochs,batch_size=batch_size_fit, verbose=args.verbose, class_weight=class_weights)	
-	model.save_weights(weight_file_name)
+	model.save_weights(model_name+"_CV")
 	print("Model saved as:", model_name+"_CV")
 	
 
