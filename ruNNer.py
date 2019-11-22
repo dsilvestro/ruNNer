@@ -137,11 +137,7 @@ if file_training_labels:
 			training_labels= training_labels-np.min(training_labels)		
 	except: 
 		training_labels = np.load(file_training_labels) # load npy file
-
-# process train dataset
-train_nn = 0
-test_nn  = 0
-if run_train:
+	
 	try:
 		training_features = np.loadtxt(file_training_data) # load txt file
 	except: 
@@ -153,6 +149,11 @@ if run_train:
 	scaler.fit(training_features)
 	training_features = scaler.transform(training_features)
 
+
+# process train dataset
+train_nn = 0
+test_nn  = 0
+if run_train:
 	# select features and instances, if files provided:
 	if args.feature_indices:
 		feature_index_array = np.loadtxt(args.feature_indices,dtype=int)
@@ -388,7 +389,12 @@ if args.cross_val>1:
 
 
 
-if test_nn and args.test > 0.: # and not args.cross_val > 1:	
+if test_nn and args.test > 0.: # and not args.cross_val > 1:
+	if args.test==1:
+		pass
+		#training_features
+	
+	
 	estimate_par = model.predict(input_test)
 	predictions=np.argmax(estimate_par,axis=1)
 	if print_full_test_output:
