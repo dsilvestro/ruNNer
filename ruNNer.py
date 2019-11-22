@@ -134,19 +134,7 @@ if file_training_labels:
 	try:
 		training_labels = np.loadtxt(file_training_labels) # load txt file
 		if np.min(training_labels)>0:
-			training_labels= training_labels-np.min(training_labels)
-		#
-		#"IUCN binary"
-		#cat = 3
-		#training_labels[training_labels<=cat] = 0
-		#training_labels[training_labels> cat] = 1
-		#
-		#"IUCN 3 categories"
-		##training_labels[training_labels<=1] = 10
-		##training_labels[training_labels<=3] = 11
-		##training_labels[training_labels==4] = 12
-		##training_labels = training_labels-10
-		
+			training_labels= training_labels-np.min(training_labels)		
 	except: 
 		training_labels = np.load(file_training_labels) # load npy file
 
