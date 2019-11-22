@@ -316,8 +316,8 @@ if run_train:
 				optimal_number_of_epochs = np.argmin(history.history['val_loss'])
 			elif args.optim_epoch==1:
 				optimal_number_of_epochs = np.argmax(history.history['val_accuracy'])
-			best_epochs.append(optimal_number_of_epochs)
-			print("optimal number of epochs:", optimal_number_of_epochs+1)
+			best_epochs.append(optimal_number_of_epochs+1)
+			print("optimal number of epochs:", optimal_number_of_epochs)
 			# print loss and accuracy at best epoch to file
 			loss_at_best_epoch = history.history['val_loss'][optimal_number_of_epochs]
 			accurracy_at_best_epoch = history.history['val_accuracy'][optimal_number_of_epochs]
@@ -363,12 +363,17 @@ if run_train:
 	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
 
 	if not args.validation_off:
-	   # add the list of best epochs and accuracies to output df
+		cv_avg_epochs   = int(np.round(np.mean(best_epochs)))
+		cv_avg_accuracy = np.mean(accuracy_scores)
+		cv_avg_loss     = np.mean(loss_scores)
 		args_data['best_epoch'] = str(best_epochs)
 		args_data['accuracies'] = str((accuracy_scores))	
-		args_data['loss_scores'] = str((loss_scores))	
-		print('Best epoch (average):', int(np.round(np.mean(best_epochs))))
-		print('Validation accuracy (average):', np.mean(accuracy_scores))
+		args_data['loss_scores'] = str((loss_scores))
+		args_data['avg_epoch']    = str(cv_avg_epochs)
+		args_data['avg_accuracy'] = str(cv_avg_accuracy)
+		args_data['avg_loss']     = str(cv_avg_loss)
+		print('Best epoch (average):', cv_avg_epochs)
+		print('Validation accuracy (average):', cv_avg_accuracy)
 
 	out_file = open(info_out,"w")
 	for i in args_data:
@@ -388,7 +393,7 @@ if args.cross_val>1:
 	model.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
 	model.summary()
 	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
-	history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, verbose=args.verbose, class_weight=class_weights)	
+	history=model.fit(input_training,input_trainLabelsPr,epochs=cv_avg_epochs,batch_size=batch_size_fit, verbose=args.verbose, class_weight=class_weights)	
 	model.save_weights(weight_file_name)
 	print("Model saved as:", model_name+"_CV")
 	
