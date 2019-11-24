@@ -23,7 +23,7 @@ import argparse, sys, copy
 
 
 p = argparse.ArgumentParser() #description='<input file>') 
-p.add_argument('-mode',                   choices=['train', 'predict'],default=None,required=True)
+p.add_argument('-mode',                   choices=['train', 'predict','test'],default=None,required=True)
 p.add_argument('-t',                      type=str,   help='array of training features',default= "", metavar= "")
 p.add_argument('-l',                      type=str,   help='array of training labels', default= 0, metavar= 0)
 p.add_argument('-e',                      type=str,   help='array of empirical features', default= 0, metavar= 0)
@@ -69,6 +69,8 @@ if n_hidden_layers != len(units_multiplier):
 	print("Using node multiplier:",units_multiplier)
 plot_curves = 1 
 train_nn = 1
+test_nn  = 0
+
 randomize_data = args.randomize_data
 #run_test_accuracy = 0
 #run_tests = 0
@@ -78,6 +80,10 @@ if args.mode == 'train':
 elif args.mode == 'predict':
 	run_train = 0
 	run_empirical = 1
+elif args.mode == 'test':
+	run_train = 0
+	run_empirical = 0
+	test_nn  = 1
 
 try:
 	rescale_factors = float(args.r)
@@ -152,7 +158,6 @@ if file_training_labels:
 
 # process train dataset
 train_nn = 0
-test_nn  = 0
 if run_train:
 	# select features and instances, if files provided:
 	if args.feature_indices:
@@ -390,9 +395,25 @@ if args.cross_val>1:
 
 
 if test_nn and args.test > 0.: # and not args.cross_val > 1:
-	if args.test==1:
-		pass
-		#training_features
+	if args.mode=="test":
+		input_test = training_features
+		input_testLabels = training_labels.astype(int)
+		input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
+		hSize = np.shape(input_test)[1]
+		nCat  = np.shape(input_testLabelsPr)[1]
+		dSize = np.shape(input_test)[0]
+	
+		model=Sequential() # init neural network
+		model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+		for jj in range(n_hidden_layers-1):
+			model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
+		model.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
+		model.summary()
+		model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
+		model.load_weights(model_name, by_name=False)
+		info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('model_NN_','') )
+		out_file = open(info_out,"w")
+		#
 	
 	
 	estimate_par = model.predict(input_test)
@@ -403,7 +424,8 @@ if test_nn and args.test > 0.: # and not args.cross_val > 1:
 	
 	cM = confusion_matrix(input_testLabels,predictions)
 	print("Confusion matrix:\n", cM)
-	print( (np.array(cM).T / np.sum(np.array(cM),1)).T)
+	rescaled_cM = (np.array(cM).T / np.sum(np.array(cM),1)).T
+	print(rescaled_cM)
 	scores=model.evaluate(input_test,input_testLabelsPr,verbose=0)
 	print("\nTest accuracy rate: %.2f%%"%(scores[1]*100))
 	print("Test error rate: %.2f%%"%(100-scores[1]*100))
@@ -411,7 +433,21 @@ if test_nn and args.test > 0.: # and not args.cross_val > 1:
 	out_file.writelines(f"\nTest accuracy rate\t%s " %(scores[1])) 
 	out_file.writelines(f"\nTest cross-entropy loss\t%s " %(scores[0])) 
 	out_file.writelines(f"\nConfusion matrix:\n%s" % cM)
-	out_file.writelines(f"\nRescaled confusion matrix:\n%s" % ((np.array(cM).T / np.sum(np.array(cM),1)).T))
+	out_file.writelines(f"\nRescaled confusion matrix:\n%s" % rescaled_cM)
+
+	if args.mode=="test":
+		out_file = open(info_out.replace('.txt','')+"_class_prob.txt","w")
+		out="label\t"
+		for i in np.unique(input_testLabels):
+			out += "P_%s\t" % i
+		out_file.writelines( out )
+		for i in range(len(estimate_par)):
+			line_list = [input_testLabels[i]] + list(estimate_par[i]) 
+			out="\n"
+			for j in line_list: out= out+"%s\t" % j 
+			out_file.writelines( out )
+		
+		np.savetxt(info_out.replace('.txt','')+"_CM.txt",rescaled_cM,fmt='%.3f',delimiter='\t')
 
 
 
