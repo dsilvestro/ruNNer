@@ -354,7 +354,11 @@ if run_empirical:
 	else:
 		out_file_stem = os.path.basename(model_name)
 	out_file_stem = out_file_stem + args.outname
+
 	# scale data using the min-max scaler (between 0 and 1)
+	scaler = MinMaxScaler()
+	scaler.fit(empirical_features)
+	empirical_features = scaler.transform(empirical_features)
 
 	if file_training_labels:
 		size_output = len(set(training_labels))
