@@ -2,25 +2,28 @@
 # Created by Daniele Silvestro on 2019.05.23
 import matplotlib
 matplotlib.use('Agg')
-import keras, os
+import keras
 import numpy as np
 from numpy import *
 import scipy.special
 np.set_printoptions(suppress= 1) # prints floats, no scientific notation
 np.set_printoptions(precision=3) # rounds all array elements to 3rd digit
-from keras.models import Sequential
-from keras.layers import Dense
-#from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
 # from tensorflow import set_random_seed
 import matplotlib.backends.backend_pdf
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import keras.backend
+#import tensorflow.keras.backend
+from tensorflow.keras import backend
 import argparse, sys, copy
-
+import os
+try:
+	os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # disable tf compilation warning
+except: pass
 
 p = argparse.ArgumentParser() #description='<input file>') 
 p.add_argument('-mode',                   choices=['train', 'predict','test'],default=None,required=True)
@@ -31,7 +34,6 @@ p.add_argument('-r',                      type=str,   help='file with rescaling 
 p.add_argument('-feature_indices',        type=str,   help='array of feature indices to select', default= 0, metavar= 0)
 p.add_argument('-train_instance_indices', type=str,   help='array of indices for selecting training instances', default= 0, metavar= 0)
 p.add_argument('-test',                   type=float, help='fraction of training used as test set', default= 0.1, metavar= 0.1)
-p.add_argument('-n_labels',               type=int,   help='provide number of labels, necessary for prediction', default=0)
 p.add_argument('-outlabels',              type=str,   nargs='+',default=[])
 p.add_argument('-layers',                 type=int,   help='n. hidden layers', default= 1, metavar= 1)
 p.add_argument('-outpath',                type=str,   help='', default= "")
@@ -114,6 +116,8 @@ kernel_init = kernel_initializers[args.kerninit-1]
 outpath = args.outpath
 if outpath=="":
 	outpath = os.path.dirname(args.t)
+	if outpath=="":
+		outpath = os.path.dirname(args.e)
 elif not os.path.exists(outpath):
  	os.makedirs(outpath)
 
@@ -125,7 +129,10 @@ if args.loadNN == "":
 	else:
 		model_out = outpath
 	
-	model_name = os.path.join(model_out,"model_NN_%s_%s" % (args.outname, rseed))
+	input_file_raw = os.path.basename(args.t)
+	input_file = os.path.splitext(input_file_raw)[0]  # file name without extension
+	
+	model_name = os.path.join(model_out,"%s_NN%s" % (input_file,args.outname))
 	#model_name = os.path.join(model_out,"trained_model_NN_%slayers%sepochs%sbatch%s%s_%s" % (n_hidden_layers,max_epochs,batch_size_fit,activation_function,kernel_init,rseed))
 else:
 	model_name = args.loadNN
@@ -203,7 +210,7 @@ if run_train:
 	if batch_size_fit==0:
 		batch_size_fit = int(input_training.shape[0])
 	
-	print('Training data shape:', input_training.shape)
+	print('\nTraining data shape:', input_training.shape)
 
 	train_nn = 1
 	test_nn  = 1
@@ -246,10 +253,9 @@ if run_train:
 		class_weights = class_weight.compute_class_weight('balanced', np.unique(input_trainLabels[:index]), input_trainLabels[:index])	
 		#print(len(training_labels) / (len(np.unique(training_labels)) *  np.unique(training_labels, return_counts=True)[1]) )
 		#class_weights = class_weights*0+1
-		print(class_weights)
-		print(np.unique(input_trainLabels[:index]))
-		print(np.unique(input_trainLabels[:index], return_counts=True))
-		#quit()	
+		print("Estimated class weights:",class_weights)
+		#print(np.unique(input_trainLabels[:index]))
+		#print(np.unique(input_trainLabels[:index], return_counts=True))
 	else:
 		class_weights = np.ones(nCat)
 		print(class_weights)
@@ -332,7 +338,10 @@ if run_train:
 			weight_file_name = model_name+'_cv_%i'%i
 		else:
 			weight_file_name = model_name
-		model.save_weights(weight_file_name)
+		
+		weight_file_name= weight_file_name+".model"
+		#model.save_weights(weight_file_name)
+		model.save(weight_file_name) 
 		print("Model saved as:", weight_file_name)
 
 	try:
@@ -354,7 +363,7 @@ if run_train:
 	# add the shape of the training data input
 	args_data['total_training_array_shape'] = str(input_training.shape)
 
-	print('Putting away %.3f of the data as test set. Dimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
+	print('\n\nUsing %.3f of the data as test set.\nDimensions of resulting test set: %s.'%(args.test,str(input_test.shape)))
 
 	if not args.validation_off:
 		cv_avg_epochs   = int(np.round(np.mean(best_epochs)))
@@ -388,8 +397,9 @@ if args.cross_val>1:
 	model.summary()
 	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 	history=model.fit(input_training,input_trainLabelsPr,epochs=cv_avg_epochs,batch_size=batch_size_fit, verbose=args.verbose, class_weight=class_weights)	
-	model.save_weights(model_name+"_CV")
-	print("Model saved as:", model_name+"_CV")
+	model.save(model_name+"_CV") 
+	#model.save_weights(model_name+"_CV")
+	print("Model saved as:", model_name+".CVmodel")
 	
 
 
@@ -402,20 +412,12 @@ if test_nn and args.test > 0.: # and not args.cross_val > 1:
 		hSize = np.shape(input_test)[1]
 		nCat  = np.shape(input_testLabelsPr)[1]
 		dSize = np.shape(input_test)[0]
-	
-		model=Sequential() # init neural network
-		model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
-		for jj in range(n_hidden_layers-1):
-			model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
-		model.add(Dense(units=nCat,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
-		model.summary()
-		model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
-		model.load_weights(model_name, by_name=False)
-		info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('model_NN_','') )
+		model = tf.keras.models.load_model(model_name)
+		info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('_NN_','') )
 		out_file = open(info_out,"w")
 		#
 	
-	
+	print('\nTest data shape:', input_test.shape)	
 	estimate_par = model.predict(input_test)
 	predictions=np.argmax(estimate_par,axis=1)
 	if print_full_test_output:
@@ -423,7 +425,7 @@ if test_nn and args.test > 0.: # and not args.cross_val > 1:
 			print( input_testLabels[i], estimate_par[i], input_testLabelsPr[i] )
 	
 	cM = confusion_matrix(input_testLabels,predictions)
-	print("Confusion matrix:\n", cM)
+	print("Confusion matrix (test set):\n", cM)
 	rescaled_cM = (np.array(cM).T / np.sum(np.array(cM),1)).T
 	print(rescaled_cM)
 	scores=model.evaluate(input_test,input_testLabelsPr,verbose=0)
@@ -476,36 +478,14 @@ if run_empirical:
 	scaler.fit(empirical_features)
 	empirical_features = scaler.transform(empirical_features)
 
-	if file_training_labels:
-		size_output = len(set(training_labels))
-	elif args.n_labels:
-		# get the number of labels
-		size_output = args.n_labels
-	elif args.outlabels:
-		size_output = len(args.outlabels)
-	else:
-		quit('Missing value ERROR: Use the "-n_labels" flag to specify the number of categories or provide the label array used for training using the "-l" flag or provide "-outlabels" flag followed by a list of desired label names.')
-
-	print("Loading weights...")
-	# DEF SIZE OF THE FEATURES
-	hSize = empirical_features.shape[1]
-	model=Sequential() # init neural network
-	model.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
-	for jj  in range(n_hidden_layers-1):
-		model.add(Dense(units=int(units_multiplier[jj+1]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
-	model.add(Dense(units=size_output,activation=out_activation_func,kernel_initializer=kernel_init,use_bias=useBiasNode))
-	model.summary()
-	model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
-	model.load_weights(model_name, by_name=False)
-	print("done.")
-	#print(model.get_config())
-	print(np.shape(empirical_features))
-
+	print("Loading model...")
+	model = tf.keras.models.load_model(model_name)
 	estimate_par = model.predict(empirical_features)
-	print(estimate_par)
-	outfile = os.path.join(outpath,"label_probabilities_%s.txt" %out_file_stem)
+	print(estimate_par.shape)
+	size_output = estimate_par.shape[1]
+	outfile = os.path.join(outpath,"label_probabilities_%s.txt" % out_file_stem)
 	np.savetxt(outfile, np.round(estimate_par,4), delimiter="\t",fmt='%1.4f')
-	
+	print("Results saved as:", outfile)
 
 	if file_training_labels:
 		try:
