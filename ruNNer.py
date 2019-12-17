@@ -251,14 +251,10 @@ if run_train:
 		#res = dict(zip(test_keys, test_values)) 
 		from sklearn.utils import class_weight
 		class_weights = class_weight.compute_class_weight('balanced', np.unique(input_trainLabels[:index]), input_trainLabels[:index])	
-		#print(len(training_labels) / (len(np.unique(training_labels)) *  np.unique(training_labels, return_counts=True)[1]) )
-		#class_weights = class_weights*0+1
 		print("Estimated class weights:",class_weights)
-		#print(np.unique(input_trainLabels[:index]))
-		#print(np.unique(input_trainLabels[:index], return_counts=True))
 	else:
 		class_weights = np.ones(nCat)
-		print(class_weights)
+		print("Using equal class weights:", class_weights)
 	
 	
 	accuracy_scores = []
@@ -267,7 +263,7 @@ if run_train:
 	for i,input_training in enumerate(training_data):
 		input_trainLabelsPr = training_labels[i]
 		validation_data = validation_data_list[i]
-		modelFirstRun=Sequential() # init neural network
+		modelFirstRun = Sequential() # init neural network
 		### DEFINE from INPUT HIDDEN LAYER
 		modelFirstRun.add(Dense(input_shape=(hSize,),units=int(units_multiplier[0]*hSize),activation=activation_function,kernel_initializer=kernel_init,use_bias=useBiasNode))
 		### ADD HIDDEN LAYER
@@ -278,7 +274,7 @@ if run_train:
 		modelFirstRun.summary()
 		modelFirstRun.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 		print("Running model.fit")
-      # if no validation data (set by user) just train until final epoch
+		# if no validation data (set by user) just train until final epoch
 		if len(validation_data[0]) == 0:
 			history=modelFirstRun.fit(input_training,input_trainLabelsPr,epochs=max_epochs,batch_size=batch_size_fit,verbose=args.verbose, class_weight=class_weights)
 			model = modelFirstRun
@@ -305,12 +301,7 @@ if run_train:
 				plt.xlabel('Epochs',fontsize=12)
 				plt.ylabel('Accuracy',fontsize=12)
 				plt.title('Accuracy Curves',fontsize=12)
-				
-				#file_name = "%s_res.pdf" % (model_name.replace('trained_model_',''))
-				#pdf = matplotlib.backends.backend_pdf.PdfPages(file_name)
-				#pdf.savefig( fig )
-				#pdf.close()
-
+			
 			# OPTIM OVER VALIDATION AND THEN TEST ON TEST DATASET (THAT'S THE FINAL ACCURACY)
 			if args.optim_epoch==0:
 				optimal_number_of_epochs = np.argmin(history.history['val_loss'])
@@ -329,7 +320,7 @@ if run_train:
 			model.summary()
 			model.compile(loss=loss_function,optimizer="adam",metrics=["accuracy"])
 			history=model.fit(input_training,input_trainLabelsPr,epochs=optimal_number_of_epochs+1,batch_size=batch_size_fit, validation_data=validation_data, verbose=args.verbose, class_weight=class_weights)	
-
+			
 			accuracy = history.history['val_accuracy'][-1]
 			accuracy_scores.append(np.round(accuracy,6))
 			loss_scores.append(history.history['val_loss'][-1])
@@ -358,7 +349,7 @@ if run_train:
 	# write output text file
 	info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('trained_model_','') )
 	args_data = vars(args)
-   # adjust seed since it may have been randomely drawn
+	# adjust seed since it may have been randomely drawn
 	args_data['seed'] = rseed
 	# add the shape of the training data input
 	args_data['total_training_array_shape'] = str(input_training.shape)
@@ -415,7 +406,6 @@ if test_nn and args.test > 0.: # and not args.cross_val > 1:
 		model = tf.keras.models.load_model(model_name)
 		info_out = os.path.join(outpath,'%s_info.txt' % model_name.replace('_NN_','') )
 		out_file = open(info_out,"w")
-		#
 	
 	print('\nTest data shape:', input_test.shape)	
 	estimate_par = model.predict(input_test)
@@ -472,7 +462,7 @@ if run_empirical:
 	else:
 		out_file_stem = os.path.basename(model_name)
 	out_file_stem = out_file_stem + args.outname
-
+	
 	# scale data using the min-max scaler (between 0 and 1)
 	scaler = MinMaxScaler()
 	scaler.fit(empirical_features)
@@ -481,11 +471,11 @@ if run_empirical:
 	print("Loading model...")
 	model = tf.keras.models.load_model(model_name)
 	estimate_par = model.predict(empirical_features)
-	print(estimate_par.shape)
+	#print(estimate_par.shape)
 	size_output = estimate_par.shape[1]
 	outfile = os.path.join(outpath,"label_probabilities_%s.txt" % out_file_stem)
 	np.savetxt(outfile, np.round(estimate_par,4), delimiter="\t",fmt='%1.4f')
-	print("Results saved as:", outfile)
+	print("\nResults saved as:", outfile,"\n")
 
 	if file_training_labels:
 		try:
