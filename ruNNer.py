@@ -38,6 +38,7 @@ p.add_argument("-l", type=str, help="array of training labels", default=0, metav
 p.add_argument("-e", type=str, help="array of empirical features", default=0, metavar=0)
 p.add_argument("-r", type=str, help="file with rescaling array or float", default=1, metavar=1)
 p.add_argument("-feature_indices", type=str, help="array of feature indices to select", default=0, metavar=0)
+p.add_argument("-head", type=int, help="header in training or empirical features file", default=0, metavar=0)
 p.add_argument("-train_instance_indices",type=str,help="array of indices for selecting training instances",default=0,metavar=0)
 p.add_argument("-test",type=float,help="fraction of training used as test set",default=0.1,metavar=0.1)
 p.add_argument("-outlabels", type=str, nargs="+", default=[])
@@ -47,6 +48,7 @@ p.add_argument("-outname", type=str, help="", default="")
 p.add_argument("-batch_size", type=int, help="if 0: dataset is not sliced into smaller batches", default=0, metavar=0)
 p.add_argument("-epochs", type=int, help="", default=1000, metavar=1000)
 p.add_argument("-class_weight", type=int, help="0) uniform weights; 1) weight for imbalanced classes ", default=1, metavar=1)
+p.add_argument("-sub_sample_classes", type=int, help="0) use all data; 1) use sub-sampling to balance classes ", default=0, metavar=0)
 p.add_argument("-optim_epoch", type=int, help="0) min loss function; 1) max validation accuracy", default=0)
 p.add_argument("-verbose", type=int, help="", default=0, metavar=0)
 p.add_argument("-loadNN", type=str, help="", default="", metavar="")
@@ -161,7 +163,7 @@ if file_training_labels:
 		training_labels = np.load(file_training_labels)  # load npy file
 
 	try:
-		training_features = np.loadtxt(file_training_data)  # load txt file
+		training_features = np.loadtxt(file_training_data,skiprows=args.head)  # load txt file
 	except:
 		training_features = np.load(file_training_data)  # load npy file
 	training_features /= rescale_factors
@@ -185,12 +187,24 @@ if run_train:
 		training_features = training_features[instance_index_array, :]
 		training_labels = training_labels[instance_index_array]
 
+	if args.sub_sample_classes:
+		count_per_category = np.unique(training_labels, return_counts = True)
+		min_n_instances = np.min(count_per_category[1]) #count_per_category[0][np.argmin(count_per_category[1])]
+		print("count per category:", len(training_labels))
+		subsampled_indx = []
+		for label_class in count_per_category[0]:
+			indx_class = np.where(training_labels==label_class)[0]
+			subsampled_indx = subsampled_indx + list(np.random.choice(indx_class, min_n_instances, replace=False))
+		training_features = training_features[subsampled_indx, :] + 0
+		training_labels = training_labels[subsampled_indx] + 0
+
 	dSize = np.shape(training_features)[0]
 	if randomize_data:
 		rnd_indx = np.random.choice(np.arange(dSize), dSize, replace=False)
 		# shuffle data
 		training_features = training_features[rnd_indx, :] + 0
 		training_labels = training_labels[rnd_indx] + 0
+		
 
 	init_training_features = copy.deepcopy(training_features)
 	init_training_labels = copy.deepcopy(training_labels)
@@ -568,7 +582,8 @@ if test_nn and args.test > 0.0:  # and not args.cross_val > 1:
 if run_empirical:
 	print("Loading input file...")
 	try:
-		empirical_features = np.loadtxt(file_empirical_data)
+		empirical_features = np.loadtxt(file_empirical_data,skiprows=args.head)
+		print(empirical_features.shape)
 	except:
 		empirical_features = np.load(file_empirical_data)
 
