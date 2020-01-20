@@ -3,7 +3,7 @@
 import matplotlib
 
 matplotlib.use("Agg")
-import keras
+# import keras
 import numpy as np
 from numpy import *
 import scipy.special
@@ -47,6 +47,7 @@ p.add_argument("-outpath", type=str, help="", default="")
 p.add_argument("-outname", type=str, help="", default="")
 p.add_argument("-batch_size", type=int, help="if 0: dataset is not sliced into smaller batches", default=0, metavar=0)
 p.add_argument("-epochs", type=int, help="", default=1000, metavar=1000)
+p.add_argument("-rescale_data", type=int, help="If set to 0 data are not rescaled between 0 and 1", default=1, metavar=1)
 p.add_argument("-class_weight", type=int, help="0) uniform weights; 1) weight for imbalanced classes ", default=1, metavar=1)
 p.add_argument("-sub_sample_classes", type=int, help="0) use all data; 1) use sub-sampling to balance classes ", default=0, metavar=0)
 p.add_argument("-optim_epoch", type=int, help="0) min loss function; 1) max validation accuracy", default=0)
@@ -55,7 +56,7 @@ p.add_argument("-loadNN", type=str, help="", default="", metavar="")
 p.add_argument("-seed", type=int, help="", default=0, metavar=0)
 p.add_argument("-actfunc", type=int, help="1) relu; 2) tanh; 3) sigmoid", default=1, metavar=1)
 p.add_argument("-kerninit", type=int, help="1) glorot_normal; 2) glorot_uniform", default=1, metavar=1)
-p.add_argument("-nodes", type=float, help="n. nodes (multiplier of n. features)", nargs="+", default=[1.0])
+p.add_argument("-nodes", type=float, help="n. nodes (if > 2: multiplier of n. features)", nargs="+", default=[1.0])
 p.add_argument("-randomize_data", type=float, help="shuffle order data entries", default=1, metavar=1)
 p.add_argument("-threads", type=int, help="n. of threads (0: system picks an appropriate number)", default=0, metavar=0)
 p.add_argument("-cross_val", type=int, help="Set number of cross validations to run. Set to 0 to turn off.", default=0)
@@ -157,8 +158,6 @@ file_training_labels = args.l  # training labels
 if file_training_labels:
 	try:
 		training_labels = np.loadtxt(file_training_labels)  # load txt file
-		if np.min(training_labels) > 0:
-			training_labels = training_labels - np.min(training_labels)
 	except:
 		training_labels = np.load(file_training_labels)  # load npy file
 
@@ -168,10 +167,13 @@ if file_training_labels:
 		training_features = np.load(file_training_data)  # load npy file
 	training_features /= rescale_factors
 
+	if np.min(training_labels) > 0:
+		training_labels = training_labels - np.min(training_labels)
 	# scale data using the min-max scaler (between 0 and 1)
-	scaler = MinMaxScaler()
-	scaler.fit(training_features)
-	training_features = scaler.transform(training_features)
+	if args.rescale_data:
+		scaler = MinMaxScaler()
+		scaler.fit(training_features)
+		training_features = scaler.transform(training_features)
 
 
 # process train dataset
@@ -287,6 +289,10 @@ if run_train:
 	accuracy_scores = []
 	loss_scores = []
 	best_epochs = []
+	if units_multiplier[0] < 2:
+		multiplier_nodes = hSize
+	else:
+		multiplier_nodes = 1
 	for i, input_training in enumerate(training_data):
 		input_trainLabelsPr = training_labels[i]
 		validation_data = validation_data_list[i]
@@ -295,7 +301,7 @@ if run_train:
 		modelFirstRun.add(
 			Dense(
 				input_shape=(hSize,),
-				units=int(units_multiplier[0] * hSize),
+				units=int(units_multiplier[0] * multiplier_nodes),
 				activation=activation_function,
 				kernel_initializer=kernel_init,
 				use_bias=useBiasNode,
@@ -305,7 +311,7 @@ if run_train:
 		for jj in range(n_hidden_layers - 1):
 			modelFirstRun.add(
 				Dense(
-					units=int(units_multiplier[jj + 1] * hSize),
+					units=int(units_multiplier[jj + 1] * multiplier_nodes),
 					activation=activation_function,
 					kernel_initializer=kernel_init,
 					use_bias=useBiasNode,
@@ -384,7 +390,7 @@ if run_train:
 			model.add(
 				Dense(
 					input_shape=(hSize,),
-					units=int(units_multiplier[0] * hSize),
+					units=int(units_multiplier[0] * multiplier_nodes),
 					activation=activation_function,
 					kernel_initializer=kernel_init,
 					use_bias=useBiasNode,
@@ -393,7 +399,7 @@ if run_train:
 			for jj in range(n_hidden_layers - 1):
 				model.add(
 					Dense(
-						units=int(units_multiplier[jj + 1] * hSize),
+						units=int(units_multiplier[jj + 1] * multiplier_nodes),
 						activation=activation_function,
 						kernel_initializer=kernel_init,
 						use_bias=useBiasNode,
@@ -482,12 +488,17 @@ if args.cross_val > 1:
 	input_training = init_training_features[train_indx, :]
 	input_trainLabels = init_training_labels[train_indx].astype(int)
 	input_trainLabelsPr = tf.keras.utils.to_categorical(input_trainLabels)
-
+	
+	if units_multiplier[0] < 2:
+		multiplier_nodes = hSize
+	else:
+		multiplier_nodes = 1
+	
 	model = Sequential()  # init neural network
 	model.add(
 		Dense(
 			input_shape=(hSize,),
-			units=int(units_multiplier[0] * hSize),
+			units=int(units_multiplier[0] * multiplier_nodes),
 			activation=activation_function,
 			kernel_initializer=kernel_init,
 			use_bias=useBiasNode,
@@ -496,7 +507,7 @@ if args.cross_val > 1:
 	for jj in range(n_hidden_layers - 1):
 		model.add(
 			Dense(
-				units=int(units_multiplier[jj + 1] * hSize),
+				units=int(units_multiplier[jj + 1] * multiplier_nodes),
 				activation=activation_function,
 				kernel_initializer=kernel_init,
 				use_bias=useBiasNode,
@@ -583,13 +594,13 @@ if run_empirical:
 	print("Loading input file...")
 	try:
 		empirical_features = np.loadtxt(file_empirical_data,skiprows=args.head)
-		print(empirical_features.shape)
+		# print(empirical_features.shape)
 	except:
 		empirical_features = np.load(file_empirical_data)
 
 	empirical_features /= rescale_factors
-	print(np.amin(empirical_features, 0))
-	print(np.amax(empirical_features, 0))
+	# print(np.amin(empirical_features, 0))
+	# print(np.amax(empirical_features, 0))
 	# select features and instances, if files provided:
 	if args.feature_indices:
 		feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
@@ -597,22 +608,26 @@ if run_empirical:
 		out_file_stem = ".".join(os.path.basename(args.feature_indices).split(".")[:-1])
 	else:
 		out_file_stem = os.path.basename(model_name)
+	input_file_stem = os.path.basename(file_empirical_data)
+	input_file_stem = input_file_stem.replace(".txt","")
+	input_file_stem = input_file_stem.replace(".npy","")
+	
+	
 	out_file_stem = out_file_stem + args.outname
 
 	# scale data using the min-max scaler (between 0 and 1)
-	scaler = MinMaxScaler()
-	scaler.fit(empirical_features)
-	empirical_features = scaler.transform(empirical_features)
+	if args.rescale_data:
+		scaler = MinMaxScaler()
+		scaler.fit(empirical_features)
+		empirical_features = scaler.transform(empirical_features)
 
 	print("Loading model...")
 	model = tf.keras.models.load_model(model_name)
 	estimate_par = model.predict(empirical_features)
 	# print(estimate_par.shape)
 	size_output = estimate_par.shape[1]
-	outfile = os.path.join(outpath, "label_probabilities_%s.txt" % out_file_stem)
-	np.savetxt(outfile, np.round(estimate_par, 4), delimiter="\t", fmt="%1.4f")
-	print("\nResults saved as:", outfile, "\n")
-
+	outfile = os.path.join(outpath, "%slabelsPr_%s.txt" % (input_file_stem, out_file_stem))
+	
 	if file_training_labels:
 		try:
 			lab = np.sort(np.arange(list(set(training_labels))).astype(int))
@@ -622,7 +637,13 @@ if run_empirical:
 		lab = np.array(args.outlabels)
 	else:
 		lab = np.arange(size_output)
+	
+	col_names = ""
+	for i in lab: col_names = col_names + i + "\t"
+	np.savetxt(outfile, np.round(estimate_par, 4), delimiter="\t", fmt="%1.4f", header=col_names)
+	print("\nResults saved as:", outfile, "\n")
+
 	indx_best = np.argmax(estimate_par, axis=1)
 
-	outfile = os.path.join(outpath, "labels_%s.txt" % out_file_stem)
+	outfile = os.path.join(outpath, "%slabels_%s.txt" % (input_file_stem, out_file_stem))
 	np.savetxt(outfile, lab[indx_best], delimiter="\t", fmt="%s")
