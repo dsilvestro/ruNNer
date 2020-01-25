@@ -639,7 +639,8 @@ if run_empirical:
 		lab = np.arange(size_output)
 	
 	col_names = ""
-	for i in lab: col_names = col_names + i + "\t"
+	for i in lab: 
+		col_names = col_names + "%s\t" % i
 	np.savetxt(outfile, np.round(estimate_par, 4), delimiter="\t", fmt="%1.4f", header=col_names)
 	print("\nResults saved as:", outfile, "\n")
 
