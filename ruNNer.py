@@ -63,10 +63,42 @@ p.add_argument("-cross_val", type=int, help="Set number of cross validations to 
 p.add_argument("-validation_off", action="store_true", 
 	help='No validation set will be used when training the model, training will run until number of epochs set with "-epochs" flag', 
 	default=False)
-
 args = p.parse_args()
 
 useBiasNode = True
+
+
+#import argparse
+#p = argparse.ArgumentParser()
+#args = p.parse_args() 
+#args.mode = 'train'
+#args.t = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_features_0.90.npy'
+#args.l = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_labels_0.90.npy'
+#args.e = 0#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/past_feature_arrays/unknown_data_features_0MA.npy'
+#args.r = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/feature_files/training_features/rescaling_array.npy'
+#args.feature_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/P1.000C0.041_U_MPVSTC.txt'
+#args.test = 0.
+#args.seed = 1234
+#args.batch_size = 256
+#args.epochs = 244
+#args.train_instance_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/instance_indices_P1.000C0.041_U_MPVSTC.txt'
+#args.threads = 1
+#args.outpath = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/trained_models/NN'
+#args.cross_val = 0
+#args.layers = 2
+#args.nodes = [1.,1.]
+#args.randomize_data = 1
+#args.actfunc = 1
+#args.kerninit = 1
+#args.loadNN = ''#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/training_features/training_features_current_mammal_occs/all_instances_all_features/NN_test/NN_1layers1000epochs50batchreluglorot_normal_1234'
+#args.verbose = 1
+#args.optim_epoch = 0
+#args.n_labels = 2
+#args.validation_off = True
+#args.outname = ''
+#args.rescale_data = 0
+#args.sub_sample_classes = 0
+#args.class_weight = 1
 
 
 out_activation_func = "softmax"  # "sigmoid" #
@@ -166,6 +198,12 @@ if file_training_labels:
 	except:
 		training_features = np.load(file_training_data)  # load npy file
 	training_features /= rescale_factors
+   
+	# the following is necessary because of the following line that tries to get the min value of the array
+	try:
+		training_labels = training_labels.astype(int)
+	except:
+		quit('Labels must be integers and not text.') # load npy file
 
 	if np.min(training_labels) > 0:
 		training_labels = training_labels - np.min(training_labels)
@@ -210,37 +248,29 @@ if run_train:
 
 	init_training_features = copy.deepcopy(training_features)
 	init_training_labels = copy.deepcopy(training_labels)
-	# split into training and test set
-	test_indx = range(
-		int(training_features.shape[0] * (1 - args.test)), training_features.shape[0]
-	)
-	# print(test_indx)
-	input_test = training_features[test_indx, :]
-	# print(input_test)
-	input_testLabels = training_labels[test_indx].astype(int)
-	input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
-	# input_testLabelsPr = np.zeros((input_test.shape[0], len(np.unique(input_testLabels))) )
-	# j = 0
-	# for i in np.sort(np.unique(input_testLabels)):
-	# 	input_testLabelsPr[input_testLabels==i,j]=1
-	# 	j+=1
-
-	train_indx = range(int(training_features.shape[0] * (1 - args.test)))
-	input_training = training_features[train_indx, :]
-	input_trainLabels = training_labels[train_indx].astype(int)
-	input_trainLabelsPr = tf.keras.utils.to_categorical(input_trainLabels)
-	# input_trainLabelsPr = np.zeros((len(input_training[train_indx,0]), len(np.unique(input_trainLabels))) )
-	# j = 0
-	# for i in np.sort(np.unique(input_trainLabels)):
-	# 	input_trainLabelsPr[input_trainLabels==i,j]=1
-	# 	j+=1
+	if args.test:
+		print('this')
+		# split into training and test set
+		test_indx = range(int(training_features.shape[0] * (1 - args.test)), training_features.shape[0])
+		input_test = training_features[test_indx, :]
+		input_testLabels = training_labels[test_indx].astype(int)
+		input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
+		train_indx = range(int(training_features.shape[0] * (1 - args.test)))
+		input_training = training_features[train_indx, :]
+		input_trainLabels = training_labels[train_indx].astype(int)
+		input_trainLabelsPr = tf.keras.utils.to_categorical(input_trainLabels)
+		test_nn = 1
+	else:
+		input_training = training_features
+		input_trainLabels = training_labels
+		input_trainLabelsPr = tf.keras.utils.to_categorical(input_trainLabels)
+		test_nn = 0
 	if batch_size_fit == 0:
 		batch_size_fit = int(input_training.shape[0])
 
 	print("\nTraining data shape:", input_training.shape)
 
 	train_nn = 1
-	test_nn = 1
 
 	# DEF SIZE OF THE FEATURES
 	hSize = np.shape(input_training)[1]
