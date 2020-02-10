@@ -67,40 +67,6 @@ args = p.parse_args()
 
 useBiasNode = True
 
-
-#import argparse
-#p = argparse.ArgumentParser()
-#args = p.parse_args() 
-#args.mode = 'train'
-#args.t = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_features_0.90.npy'
-#args.l = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/split_feature_arrays/training_labels_0.90.npy'
-#args.e = 0#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/past_feature_arrays/unknown_data_features_0MA.npy'
-#args.r = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/feature_files/training_features/rescaling_array.npy'
-#args.feature_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/P1.000C0.041_U_MPVSTC.txt'
-#args.test = 0.
-#args.seed = 1234
-#args.batch_size = 256
-#args.epochs = 244
-#args.train_instance_indices = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/target_indices/instance_indices_P1.000C0.041_U_MPVSTC.txt'
-#args.threads = 1
-#args.outpath = '/Users/tobias/GitHub/paleovegetation/results/main_pipeline_out/area_-180_-52_25_80/model_out_seed_1234/trained_models/NN'
-#args.cross_val = 0
-#args.layers = 2
-#args.nodes = [1.,1.]
-#args.randomize_data = 1
-#args.actfunc = 1
-#args.kerninit = 1
-#args.loadNN = ''#'/Users/tobias/GitHub/paleovegetation_mammals/data/processed/feature_files/-180_-52_25_80/training_features/training_features_current_mammal_occs/all_instances_all_features/NN_test/NN_1layers1000epochs50batchreluglorot_normal_1234'
-#args.verbose = 1
-#args.optim_epoch = 0
-#args.n_labels = 2
-#args.validation_off = True
-#args.outname = ''
-#args.rescale_data = 0
-#args.sub_sample_classes = 0
-#args.class_weight = 1
-
-
 out_activation_func = "softmax"  # "sigmoid" #
 loss_function = "categorical_crossentropy"  # "binary_crossentropy" #  #"kullback_leibler_divergence" #  "mean_squared_error" #
 print_full_test_output = 0
