@@ -67,6 +67,8 @@ args = p.parse_args()
 
 useBiasNode = True
 
+
+
 out_activation_func = "softmax"  # "sigmoid" #
 loss_function = "categorical_crossentropy"  # "binary_crossentropy" #  #"kullback_leibler_divergence" #  "mean_squared_error" #
 print_full_test_output = 0
@@ -152,18 +154,13 @@ file_training_data = args.t  # empirical data
 file_empirical_data = args.e  # empirical data
 file_training_labels = args.l  # training labels
 
+
 # if labels are provided read them, because they will be used by training or prediction mode
 if file_training_labels:
 	try:
 		training_labels = np.loadtxt(file_training_labels)  # load txt file
 	except:
 		training_labels = np.load(file_training_labels)  # load npy file
-
-	try:
-		training_features = np.loadtxt(file_training_data,skiprows=args.head)  # load txt file
-	except:
-		training_features = np.load(file_training_data)  # load npy file
-	training_features /= rescale_factors
    
 	# the following is necessary because of the following line that tries to get the min value of the array
 	try:
@@ -173,6 +170,14 @@ if file_training_labels:
 
 	if np.min(training_labels) > 0:
 		training_labels = training_labels - np.min(training_labels)
+
+if file_training_data:
+	try:
+		training_features = np.loadtxt(file_training_data,skiprows=args.head)  # load txt file
+	except:
+		training_features = np.load(file_training_data)  # load npy file
+	training_features /= rescale_factors
+
 	# scale data using the min-max scaler (between 0 and 1)
 	if args.rescale_data:
 		scaler = MinMaxScaler()
