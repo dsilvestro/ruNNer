@@ -11,7 +11,7 @@ import scipy.special
 np.set_printoptions(suppress=1)  # prints floats, no scientific notation
 np.set_printoptions(precision=3)  # rounds all array elements to 3rd digit
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import MinMaxScaler
@@ -43,6 +43,7 @@ p.add_argument("-train_instance_indices",type=str,help="array of indices for sel
 p.add_argument("-test",type=float,help="fraction of training used as test set",default=0.1,metavar=0.1)
 p.add_argument("-outlabels", type=str, nargs="+", default=[])
 p.add_argument("-layers", type=int, help="n. hidden layers", default=1, metavar=1)
+p.add_argument("-dropout", type=float, default=[], metavar=[], nargs = "+")
 p.add_argument("-outpath", type=str, help="", default="")
 p.add_argument("-outname", type=str, help="", default="")
 p.add_argument("-batch_size", type=int, help="if 0: dataset is not sliced into smaller batches", default=0, metavar=0)
@@ -124,6 +125,12 @@ activation_function = activation_functions[args.actfunc - 1]
 
 kernel_initializers = ["glorot_normal", "glorot_uniform"]
 kernel_init = kernel_initializers[args.kerninit - 1]
+
+dropout = args.dropout
+if len(args.dropout) == 0:
+	dropout = np.zeros(n_hidden_layers)
+
+
 
 outpath = args.outpath
 if outpath == "":
@@ -298,6 +305,7 @@ if run_train:
 		input_trainLabelsPr = training_labels[i]
 		validation_data = validation_data_list[i]
 		modelFirstRun = Sequential()  # init neural network
+		
 		### DEFINE from INPUT HIDDEN LAYER
 		modelFirstRun.add(
 			Dense(
@@ -308,6 +316,12 @@ if run_train:
 				use_bias=useBiasNode,
 			)
 		)
+		if dropout[0] > 0:
+			modelFirstRun.add(
+				Dropout( rate=dropout[0]				
+				)
+			)
+		
 		### ADD HIDDEN LAYER
 		for jj in range(n_hidden_layers - 1):
 			modelFirstRun.add(
@@ -318,6 +332,13 @@ if run_train:
 					use_bias=useBiasNode,
 				)
 			)
+			
+			if dropout[jj+1] > 0:
+				modelFirstRun.add(
+					Dropout( rate=dropout[jj]
+					)
+				)
+			
 
 		modelFirstRun.add(
 			Dense(
@@ -397,6 +418,13 @@ if run_train:
 					use_bias=useBiasNode,
 				)
 			)
+			
+			if dropout[0] > 0:
+				model.add(
+					Dropout( rate=dropout[0]				
+					)
+				)
+			
 			for jj in range(n_hidden_layers - 1):
 				model.add(
 					Dense(
@@ -406,6 +434,12 @@ if run_train:
 						use_bias=useBiasNode,
 					)
 				)
+				if dropout[jj+1] > 0:
+					model.add(
+						Dropout( rate=dropout[jj]
+						)
+					)
+				
 			model.add(
 				Dense(
 					units=nCat,
@@ -505,6 +539,12 @@ if args.cross_val > 1:
 			use_bias=useBiasNode,
 		)
 	)
+	if dropout[0] > 0:
+		model.add(
+			Dropout( rate=dropout[0]				
+			)
+		)
+	
 	for jj in range(n_hidden_layers - 1):
 		model.add(
 			Dense(
@@ -513,7 +553,15 @@ if args.cross_val > 1:
 				kernel_initializer=kernel_init,
 				use_bias=useBiasNode,
 			)
+			
 		)
+		
+		if dropout[jj+1] > 0:
+			model.add(
+				Dropout( rate=dropout[jj]
+				)
+			)
+		
 	model.add(
 		Dense(
 			units=nCat,
