@@ -68,6 +68,8 @@ args = p.parse_args()
 
 useBiasNode = True
 
+set_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=False)
+#set_optimizer = tf.keras.optimizers.Adadelta(learning_rate=1.0, rho=0.95)
 
 
 out_activation_func = "softmax"  # "sigmoid" #
@@ -167,7 +169,7 @@ if file_training_labels:
 	try:
 		training_labels = np.loadtxt(file_training_labels)  # load txt file
 	except:
-		training_labels = np.load(file_training_labels)  # load npy file
+		training_labels = np.load(file_training_labels).astype(float)  # load npy file
    
 	# the following is necessary because of the following line that tries to get the min value of the array
 	try:
@@ -449,7 +451,7 @@ if run_train:
 				)
 			)
 			model.summary()
-			model.compile(loss=loss_function, optimizer="adam", metrics=["accuracy"])
+			model.compile(loss=loss_function, optimizer=set_optimizer, metrics=["accuracy"])
 			history = model.fit(
 				input_training,
 				input_trainLabelsPr,
@@ -571,7 +573,7 @@ if args.cross_val > 1:
 		)
 	)
 	model.summary()
-	model.compile(loss=loss_function, optimizer="adam", metrics=["accuracy"])
+	model.compile(loss=loss_function, optimizer=set_optimizer, metrics=["accuracy"])
 	history = model.fit(
 		input_training,
 		input_trainLabelsPr,
