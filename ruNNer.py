@@ -357,6 +357,9 @@ if run_train:
 		print("Running model.fit")
 		# if no validation data (set by user) just train until final epoch
 		if len(validation_data[0]) == 0:
+			np.random.seed(rseed)
+			np.random.seed(rseed)
+			tf.random.set_seed(rseed)
 			history = modelFirstRun.fit(
 				input_training,
 				input_trainLabelsPr,
@@ -368,6 +371,9 @@ if run_train:
 			model = modelFirstRun
 			print("Running training without validation set")
 		else:
+			np.random.seed(rseed)
+			np.random.seed(rseed)
+			tf.random.set_seed(rseed)
 			history = modelFirstRun.fit(
 				input_training,
 				input_trainLabelsPr,
@@ -404,12 +410,11 @@ if run_train:
 			elif args.optim_epoch == 1:
 				optimal_number_of_epochs = np.argmax(history.history["val_accuracy"])
 			best_epochs.append(optimal_number_of_epochs + 1)
-			print("optimal number of epochs:", optimal_number_of_epochs)
 			# print loss and accuracy at best epoch to file
 			loss_at_best_epoch = history.history["val_loss"][optimal_number_of_epochs]
-			accurracy_at_best_epoch = history.history["val_accuracy"][
-				optimal_number_of_epochs
-			]
+			accuracy_at_best_epoch = history.history["val_accuracy"][optimal_number_of_epochs]
+			print("optimal number of epochs:", optimal_number_of_epochs+1, accuracy_at_best_epoch)
+			
 			model = Sequential()  # init neural network
 			model.add(
 				Dense(
@@ -452,6 +457,9 @@ if run_train:
 			)
 			model.summary()
 			model.compile(loss=loss_function, optimizer=set_optimizer, metrics=["accuracy"])
+			np.random.seed(rseed)
+			np.random.seed(rseed)
+			tf.random.set_seed(rseed)
 			history = model.fit(
 				input_training,
 				input_trainLabelsPr,
@@ -463,6 +471,7 @@ if run_train:
 			)
 
 			accuracy = history.history["val_accuracy"][-1]
+			print("retrained valiadation accuracy:",accuracy)
 			accuracy_scores.append(np.round(accuracy, 6))
 			loss_scores.append(history.history["val_loss"][-1])
 
