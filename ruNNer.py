@@ -37,7 +37,7 @@ p.add_argument("-t", type=str, help="array of training features", default="", me
 p.add_argument("-l", type=str, help="array of training labels", default=0, metavar=0)
 p.add_argument("-e", type=str, help="array of empirical features", default=0, metavar=0)
 p.add_argument("-r", type=str, help="file with rescaling array or float", default=1, metavar=1)
-p.add_argument("-feature_indices", type=str, help="array of feature indices to select", default=0, metavar=0)
+p.add_argument("-feature_indices", type=str, help="array of feature indices to select", default=0, metavar=0, nargs = "+")
 p.add_argument("-head", type=int, help="header in training or empirical features file", default=0, metavar=0)
 p.add_argument("-train_instance_indices",type=str,help="array of indices for selecting training instances",default=0,metavar=0)
 p.add_argument("-test",type=float,help="fraction of training used as test set",default=0.1,metavar=0.1)
@@ -48,7 +48,7 @@ p.add_argument("-outpath", type=str, help="", default="")
 p.add_argument("-outname", type=str, help="", default="")
 p.add_argument("-batch_size", type=int, help="if 0: dataset is not sliced into smaller batches", default=0, metavar=0)
 p.add_argument("-epochs", type=int, help="", default=1000, metavar=1000)
-p.add_argument("-rescale_data", type=int, help="If set to 0 data are not rescaled between 0 and 1", default=1, metavar=1)
+p.add_argument("-rescale_data", type=int, help="If set to 0 data are not rescaled between 0 and 1; 2: standardization", default=1, metavar=1)
 p.add_argument("-class_weight", type=int, help="0) uniform weights; 1) weight for imbalanced classes ", default=1, metavar=1)
 p.add_argument("-sub_sample_classes", type=int, help="0) use all data; 1) use sub-sampling to balance classes ", default=0, metavar=0)
 p.add_argument("-optim_epoch", type=int, help="0) min loss function; 1) max validation accuracy", default=0)
@@ -68,9 +68,9 @@ args = p.parse_args()
 
 useBiasNode = True
 
-set_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=False)
+#set_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=False)
 #set_optimizer = tf.keras.optimizers.Adadelta(learning_rate=1.0, rho=0.95)
-
+set_optimizer = "adam"
 
 out_activation_func = "softmax"  # "sigmoid" #
 loss_function = "categorical_crossentropy"  # "binary_crossentropy" #  #"kullback_leibler_divergence" #  "mean_squared_error" #
@@ -144,7 +144,7 @@ elif not os.path.exists(outpath):
 
 if args.loadNN == "":
 	if args.cross_val > 1:
-		model_out = os.path.join(outpath, "cv")
+		model_out = os.path.join(outpath, "cv%s" % args.outname)
 		if not os.path.exists(model_out):
 			os.makedirs(model_out)
 	else:
@@ -188,10 +188,12 @@ if file_training_data:
 	training_features /= rescale_factors
 
 	# scale data using the min-max scaler (between 0 and 1)
-	if args.rescale_data:
+	if args.rescale_data == 1:
 		scaler = MinMaxScaler()
 		scaler.fit(training_features)
 		training_features = scaler.transform(training_features)
+	if args.rescale_data == 2:
+		training_features = (training_features - np.mean(training_features, axis=0)) / np.std(training_features, axis=0) 
 
 
 # process train dataset
@@ -199,8 +201,13 @@ train_nn = 0
 if run_train:
 	# select features and instances, if files provided:
 	if args.feature_indices:
-		feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+		try:
+			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+		except:
+			feature_index_array = np.array([int(i) for i in args.feature_indices])
+		
 		training_features = training_features[:, feature_index_array]
+		
 
 	if args.train_instance_indices:
 		instance_index_array = np.loadtxt(args.train_instance_indices, dtype=int)
@@ -351,9 +358,8 @@ if run_train:
 			)
 		)
 		modelFirstRun.summary()
-		modelFirstRun.compile(
-			loss=loss_function, optimizer="adam", metrics=["accuracy"]
-		)
+		modelFirstRun.compile(loss=loss_function, optimizer="adam", metrics=["accuracy"])
+		
 		print("Running model.fit")
 		# if no validation data (set by user) just train until final epoch
 		if len(validation_data[0]) == 0:
@@ -523,6 +529,7 @@ if run_train:
 		args_data["avg_loss"] = str(cv_avg_loss)
 		print("Best epoch (average):", cv_avg_epochs)
 		print("Validation accuracy (average):", cv_avg_accuracy)
+		print(accuracy_scores)
 
 	out_file = open(info_out, "w")
 	for i in args_data:
@@ -583,6 +590,10 @@ if args.cross_val > 1:
 	)
 	model.summary()
 	model.compile(loss=loss_function, optimizer=set_optimizer, metrics=["accuracy"])
+	
+	np.random.seed(rseed)
+	np.random.seed(rseed)
+	tf.random.set_seed(rseed)
 	history = model.fit(
 		input_training,
 		input_trainLabelsPr,
@@ -663,7 +674,10 @@ if run_empirical:
 	# print(np.amax(empirical_features, 0))
 	# select features and instances, if files provided:
 	if args.feature_indices:
-		feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+		try:
+			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+		except:
+			feature_index_array = np.array([int(i) for i in args.feature_indices])
 		empirical_features = empirical_features[:, feature_index_array]
 		out_file_stem = ".".join(os.path.basename(args.feature_indices).split(".")[:-1])
 	else:
@@ -676,10 +690,13 @@ if run_empirical:
 	out_file_stem = out_file_stem + args.outname
 
 	# scale data using the min-max scaler (between 0 and 1)
-	if args.rescale_data:
+	if args.rescale_data == 1:
 		scaler = MinMaxScaler()
 		scaler.fit(empirical_features)
 		empirical_features = scaler.transform(empirical_features)
+	if args.rescale_data == 2:
+		empirical_features = (empirical_features - np.mean(empirical_features, axis=0)) / np.std(empirical_features, axis=0) 
+	
 
 	print("Loading model...")
 	model = tf.keras.models.load_model(model_name)
