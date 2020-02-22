@@ -236,7 +236,6 @@ if run_train:
 	init_training_features = copy.deepcopy(training_features)
 	init_training_labels = copy.deepcopy(training_labels)
 	if args.test:
-		print('this')
 		# split into training and test set
 		test_indx = range(int(training_features.shape[0] * (1 - args.test)), training_features.shape[0])
 		input_test = training_features[test_indx, :]
@@ -610,6 +609,11 @@ if args.cross_val > 1:
 if test_nn and args.test > 0.0:  # and not args.cross_val > 1:
 	if args.mode == "test":
 		input_test = training_features
+		try:
+			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+		except:
+			feature_index_array = np.array([int(i) for i in args.feature_indices])
+		input_test = input_test[:, feature_index_array]		
 		input_testLabels = training_labels.astype(int)
 		input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
 		hSize = np.shape(input_test)[1]
@@ -725,3 +729,6 @@ if run_empirical:
 
 	outfile = os.path.join(outpath, "%slabels_%s.txt" % (input_file_stem, out_file_stem))
 	np.savetxt(outfile, lab[indx_best], delimiter="\t", fmt="%s")
+
+
+out_file.close()
