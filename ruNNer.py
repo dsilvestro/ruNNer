@@ -683,9 +683,8 @@ if run_empirical:
 		except:
 			feature_index_array = np.array([int(i) for i in args.feature_indices])
 		empirical_features = empirical_features[:, feature_index_array]
-		out_file_stem = ".".join(os.path.basename(args.feature_indices).split(".")[:-1])
-	else:
-		out_file_stem = os.path.basename(model_name)
+	
+	out_file_stem = os.path.basename(model_name)
 	input_file_stem = os.path.basename(file_empirical_data)
 	input_file_stem = input_file_stem.replace(".txt","")
 	input_file_stem = input_file_stem.replace(".npy","")
