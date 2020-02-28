@@ -1,7 +1,7 @@
 # python3
 # Created by Daniele Silvestro on 2019.05.23
 import matplotlib
-
+import datetime
 matplotlib.use("Agg")
 # import keras
 import numpy as np
@@ -360,6 +360,9 @@ if run_train:
 		modelFirstRun.compile(loss=loss_function, optimizer="adam", metrics=["accuracy"])
 		
 		print("Running model.fit")
+		log_dir= os.path.join(outpath,  model_name + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+		tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+		
 		# if no validation data (set by user) just train until final epoch
 		if len(validation_data[0]) == 0:
 			np.random.seed(rseed)
@@ -379,6 +382,7 @@ if run_train:
 			np.random.seed(rseed)
 			np.random.seed(rseed)
 			tf.random.set_seed(rseed)
+			import datetime
 			history = modelFirstRun.fit(
 				input_training,
 				input_trainLabelsPr,
@@ -387,6 +391,7 @@ if run_train:
 				validation_data=validation_data,
 				verbose=args.verbose,
 				class_weight=class_weights,
+				callbacks=[tensorboard_callback]
 			)
 
 			if plot_curves:
@@ -418,7 +423,10 @@ if run_train:
 			# print loss and accuracy at best epoch to file
 			loss_at_best_epoch = history.history["val_loss"][optimal_number_of_epochs]
 			accuracy_at_best_epoch = history.history["val_accuracy"][optimal_number_of_epochs]
-			print("optimal number of epochs:", optimal_number_of_epochs+1, accuracy_at_best_epoch)
+			print("optimal number of epochs:", optimal_number_of_epochs+1, accuracy_at_best_epoch)			
+			
+			tnsordboard = "tensorboard --logdir %s " % log_dir
+			print("\n\n To visualize the ouput type: \n%s\n\n" % tnsordboard)
 			
 			model = Sequential()  # init neural network
 			model.add(
