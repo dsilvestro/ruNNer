@@ -202,7 +202,7 @@ if run_train:
 	# select features and instances, if files provided:
 	if args.feature_indices:
 		try:
-			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+			feature_index_array = np.loadtxt(args.feature_indices[0], dtype=int)
 		except:
 			feature_index_array = np.array([int(i) for i in args.feature_indices])
 		
@@ -519,10 +519,6 @@ if run_train:
 	# add the shape of the training data input
 	args_data["total_training_array_shape"] = str(input_training.shape)
 
-	print(
-		"\n\nUsing %.3f of the data as test set.\nDimensions of resulting test set: %s."
-		% (args.test, str(input_test.shape))
-	)
 
 	if not args.validation_off:
 		cv_avg_epochs = int(np.round(np.mean(best_epochs)))
@@ -630,6 +626,10 @@ if test_nn and args.test > 0.0:  # and not args.cross_val > 1:
 		model = tf.keras.models.load_model(model_name)
 		info_out = os.path.join(outpath, "%s_info.txt" % model_name.replace("_NN_", ""))
 		out_file = open(info_out, "w")
+		print(
+			"\n\nUsing %.3f of the data as test set.\nDimensions of resulting test set: %s."
+			% (args.test, str(input_test.shape))
+		)
 
 	print("\nTest data shape:", input_test.shape)
 	estimate_par = model.predict(input_test)
