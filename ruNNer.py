@@ -235,13 +235,13 @@ if run_train:
 
 	init_training_features = copy.deepcopy(training_features)
 	init_training_labels = copy.deepcopy(training_labels)
+	train_indx = range(int(training_features.shape[0] * (1 - args.test)))
 	if args.test:
 		# split into training and test set
 		test_indx = range(int(training_features.shape[0] * (1 - args.test)), training_features.shape[0])
 		input_test = training_features[test_indx, :]
 		input_testLabels = training_labels[test_indx].astype(int)
 		input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
-		train_indx = range(int(training_features.shape[0] * (1 - args.test)))
 		input_training = training_features[train_indx, :]
 		input_trainLabels = training_labels[train_indx].astype(int)
 		input_trainLabelsPr = tf.keras.utils.to_categorical(input_trainLabels)
@@ -360,7 +360,7 @@ if run_train:
 		modelFirstRun.compile(loss=loss_function, optimizer="adam", metrics=["accuracy"])
 		
 		print("Running model.fit")
-		log_dir= os.path.join(outpath,  model_name + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+		log_dir= os.path.join(model_name, "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 		tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 		
 		# if no validation data (set by user) just train until final epoch
@@ -510,8 +510,7 @@ if run_train:
 		no_plot = True
 
 	# write output text file
-	info_out = os.path.join(
-		outpath, "%s_info.txt" % model_name.replace("trained_model_", "")
+	info_out = os.path.join( "%s_info.txt" % model_name.replace("trained_model_", "")
 	)
 	args_data = vars(args)
 	# adjust seed since it may have been randomely drawn
