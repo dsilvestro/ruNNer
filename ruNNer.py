@@ -61,12 +61,16 @@ p.add_argument("-nodes", type=float, help="n. nodes (if > 2: multiplier of n. fe
 p.add_argument("-randomize_data", type=float, help="shuffle order data entries", default=1, metavar=1)
 p.add_argument("-threads", type=int, help="n. of threads (0: system picks an appropriate number)", default=0, metavar=0)
 p.add_argument("-cross_val", type=int, help="Set number of cross validations to run. Set to 0 to turn off.", default=0)
-p.add_argument("-validation_off", action="store_true", 
-	help='No validation set will be used when training the model, training will run until number of epochs set with "-epochs" flag', 
-	default=False)
+p.add_argument("-validation_off", action="store_true",help='No validation set will be used when training the model, training will run until number of epochs set with "-epochs" flag', default=False)
+p.add_argument("-no_bias_node", action="store_true",help='Turn off the bias node in the NN.', default=False)
 args = p.parse_args()
 
-useBiasNode = True
+if args.no_bias_node:
+    useBiasNode = False
+else:
+    useBiasNode = True
+args = p.parse_args()
+
 
 #set_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=False)
 #set_optimizer = tf.keras.optimizers.Adadelta(learning_rate=1.0, rho=0.95)
