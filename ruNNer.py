@@ -357,7 +357,7 @@ if run_train:
 				units=nCat,
 				activation=out_activation_func,
 				kernel_initializer=kernel_init,
-				use_bias=useBiasNode,
+				use_bias=False,
 			)
 		)
 		modelFirstRun.summary()
@@ -469,7 +469,7 @@ if run_train:
 					units=nCat,
 					activation=out_activation_func,
 					kernel_initializer=kernel_init,
-					use_bias=useBiasNode,
+					use_bias=False,
 				)
 			)
 			model.summary()
@@ -591,7 +591,7 @@ if args.cross_val > 1:
 			units=nCat,
 			activation=out_activation_func,
 			kernel_initializer=kernel_init,
-			use_bias=useBiasNode,
+			use_bias=False,
 		)
 	)
 	model.summary()
