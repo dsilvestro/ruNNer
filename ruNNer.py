@@ -617,7 +617,7 @@ if test_nn and args.test > 0.0:  # and not args.cross_val > 1:
 	if args.mode == "test":
 		input_test = training_features
 		try:
-			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+			feature_index_array = np.loadtxt(args.feature_indices[0], dtype=int)
 		except:
 			feature_index_array = np.array([int(i) for i in args.feature_indices])
 		input_test = input_test[:, feature_index_array]		
@@ -690,7 +690,7 @@ if run_empirical:
 	# select features and instances, if files provided:
 	if args.feature_indices:
 		try:
-			feature_index_array = np.loadtxt(args.feature_indices, dtype=int)
+			feature_index_array = np.loadtxt(args.feature_indices[0], dtype=int)
 		except:
 			feature_index_array = np.array([int(i) for i in args.feature_indices])
 		empirical_features = empirical_features[:, feature_index_array]
@@ -740,5 +740,7 @@ if run_empirical:
 	outfile = os.path.join(outpath, "%slabels_%s.txt" % (input_file_stem, out_file_stem))
 	np.savetxt(outfile, lab[indx_best], delimiter="\t", fmt="%s")
 
-
-out_file.close()
+try:
+	out_file.close()
+except:
+	pass
