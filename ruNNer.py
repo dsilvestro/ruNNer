@@ -78,6 +78,7 @@ set_optimizer = "adam"
 
 out_activation_func = "softmax"  # "sigmoid" #
 loss_function = "categorical_crossentropy"  # "binary_crossentropy" #  #"kullback_leibler_divergence" #  "mean_squared_error" #
+# with "sparse_categorical_crossentropy" no one-hot encoding is required
 print_full_test_output = 0
 
 # NN SETTINGS
@@ -616,11 +617,12 @@ if args.cross_val > 1:
 if test_nn and args.test > 0.0:  # and not args.cross_val > 1:
 	if args.mode == "test":
 		input_test = training_features
-		try:
-			feature_index_array = np.loadtxt(args.feature_indices[0], dtype=int)
-		except:
-			feature_index_array = np.array([int(i) for i in args.feature_indices])
-		input_test = input_test[:, feature_index_array]		
+		if args.feature_indices:
+			try:
+				feature_index_array = np.loadtxt(args.feature_indices[0], dtype=int)
+			except:
+				feature_index_array = np.array([int(i) for i in args.feature_indices])
+				input_test = input_test[:, feature_index_array]		
 		input_testLabels = training_labels.astype(int)
 		input_testLabelsPr = tf.keras.utils.to_categorical(input_testLabels)
 		hSize = np.shape(input_test)[1]
